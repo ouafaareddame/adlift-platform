@@ -24,12 +24,13 @@ public class JwtService {
 
     /**
      * Génère un access token JWT signé pour l'utilisateur donné.
-     * tenantId et role sont embarqués dans le token : c'est ce qui permet
-     * à Campaign Service et Notification Service de filtrer les données
-     * sans jamais rappeler Auth Service.
+     * userId, tenantId et role sont embarqués dans le token : c'est ce qui
+     * permet à Campaign Service et Notification Service de savoir qui fait
+     * la requête et pour quel tenant, sans jamais rappeler Auth Service.
      */
     public String generateToken(User user) {
         Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId().toString());
         claims.put("tenantId", user.getTenantId().toString());
         claims.put("role", user.getRole().name());
 
@@ -46,6 +47,10 @@ public class JwtService {
         return getClaims(token).getSubject();
     }
 
+    public String extractUserId(String token) {
+        return (String) getClaims(token).get("userId");
+    }
+
     public String extractTenantId(String token) {
         return (String) getClaims(token).get("tenantId");
     }
@@ -54,12 +59,6 @@ public class JwtService {
         return (String) getClaims(token).get("role");
     }
 
-    /**
-     * Valide le token : email correspondant + signature correcte.
-     * L'expiration est déjà vérifiée automatiquement par JJWT dans
-     * getClaims() — si le token est expiré, parseSignedClaims() lève
-     * une ExpiredJwtException avant même d'arriver ici.
-     */
     public boolean isTokenValid(String token, User user) {
         try {
             String email = extractEmail(token);
