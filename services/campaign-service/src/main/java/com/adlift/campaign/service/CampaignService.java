@@ -11,9 +11,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.Map;
-
 import java.util.UUID;
 
 @Service
@@ -22,6 +22,7 @@ public class CampaignService {
 
     private final CampaignRepository campaignRepository;
     private final CampaignMetricsRepository metricsRepository;
+    private final CampaignEventPublisher eventPublisher;
 
     // ── Transitions de statut autorisées (BF06 du cahier des charges) ──
     private static final Map<CampaignStatus, List<CampaignStatus>> ALLOWED_TRANSITIONS = Map.of(
@@ -80,8 +81,7 @@ public class CampaignService {
         campaign.setStatus(newStatus);
         Campaign saved = campaignRepository.save(campaign);
 
-        // TODO Phase 3 : publier un événement RabbitMQ ici
-        // (campaign.status.changed) pour déclencher les notifications
+        eventPublisher.publishStatusChanged(saved, current);
 
         return toResponse(saved);
     }
