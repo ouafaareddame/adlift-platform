@@ -23,7 +23,7 @@ spring:
     password: guest
 
 jwt:
-  secret: adlift-super-secret-key-change-in-production-2026-must-be-long-enough
+  secret: unSecretTresLongEtAleatoirePourSignerLesTokensJWT1234567890
 
 logging:
   level:

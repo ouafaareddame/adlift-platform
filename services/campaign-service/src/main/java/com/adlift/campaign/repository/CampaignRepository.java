@@ -26,4 +26,9 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
 
     // Utilisé pour vérifier qu'un utilisateur ne modifie que les campagnes de son tenant
     boolean existsByIdAndTenantId(UUID id, UUID tenantId);
+
+    long countByTenantId(UUID tenantId);
+
+    long countByTenantIdAndStatus(UUID tenantId, CampaignStatus status);
+
 }

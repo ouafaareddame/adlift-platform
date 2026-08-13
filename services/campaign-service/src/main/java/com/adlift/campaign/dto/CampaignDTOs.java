@@ -92,4 +92,26 @@ public class CampaignDTOs {
         private Double cpc;
         private LocalDateTime recordedAt;
     }
+
+    @Data @Builder
+    public static class KpiResponse {
+        private UUID campaignId;
+        private Long totalImpressions;
+        private Long totalClicks;
+        private Long totalConversions;
+        private BigDecimal totalBudgetSpent;
+        private Double averageCtr;
+        private Double averageCpc;
+    }
+
+    @Data @Builder
+    public static class DashboardResponse {
+        private Long totalCampaigns;
+        private Long activeCampaigns;
+        private Long totalImpressions;
+        private Long totalClicks;
+        private Long totalConversions;
+        private BigDecimal totalBudgetSpent;
+    }
+
 }

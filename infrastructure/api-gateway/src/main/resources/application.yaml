@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/auth/**
+
+            - id: campaign-service
+              uri: http://localhost:8082
+              predicates:
+                - Path=/api/campaigns/**
+
+            - id: notification-service
+              uri: http://localhost:8083
+              predicates:
+                - Path=/api/notifications/**
+            - id: auth-service-members
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/members/**
+
+            - id: auth-service-tenants
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/tenants/**
+
+jwt:
+  secret: unSecretTresLongEtAleatoirePourSignerLesTokensJWT1234567890
+
+logging:
+  level:
+    com.adlift: DEBUG
+    org.springframework.cloud.gateway: DEBUG

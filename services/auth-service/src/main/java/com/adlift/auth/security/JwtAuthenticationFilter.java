@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -15,19 +16,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-/**
- * S'exécute une fois par requête, avant les filtres d'autorisation.
- * Lit le header "Authorization: Bearer <token>", vérifie le JWT,
- * et peuple le SecurityContext si tout est valide.
- * Si le header est absent/invalide, on laisse simplement la requête continuer
- * sans authentification — c'est ensuite .anyRequest().authenticated() dans
- * SecurityConfig qui décide de bloquer (401/403) ou non selon la route.
- *
- * PAS de @Component ici volontairement : ce filtre est instancié manuellement
- * dans SecurityConfig.securityFilterChain() pour éviter une dépendance circulaire
- * avec le bean UserDetailsService, qui est lui-même défini dans SecurityConfig.
- */
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
@@ -41,6 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
+        log.info("[JWT Filter] Requête : {} | Header présent : {}", request.getRequestURI(), authHeader != null);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
@@ -51,10 +42,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             String email = jwtService.extractEmail(token);
+            log.info("[JWT Filter] Email extrait du token : {}", email);
 
-            // Ne rien faire si déjà authentifié sur cette requête (évite le travail redondant)
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+                log.info("[JWT Filter] UserDetails chargé : {}", userDetails.getUsername());
 
                 if (jwtService.isTokenValid(token, (User) userDetails)) {
                     UsernamePasswordAuthenticationToken authToken =
@@ -62,11 +54,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+                    log.info("[JWT Filter] Authentification réussie pour : {}", email);
+                } else {
+                    log.warn("[JWT Filter] Token invalide pour : {}", email);
                 }
             }
         } catch (Exception e) {
-            // Token expiré, signature invalide, malformé... -> on n'authentifie pas.
-            // La route protégée renverra 401/403 plus loin dans la chaîne, proprement.
+            log.error("[JWT Filter] Exception pendant l'authentification : ", e);
             SecurityContextHolder.clearContext();
         }
 

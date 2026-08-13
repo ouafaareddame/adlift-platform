@@ -1,47 +1,70 @@
 package com.adlift.auth.exception;
 
 import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
 
-/**
- * Centralise la transformation des exceptions métier/sécurité en réponses HTTP propres.
- * Sans cette classe, toute exception non prévue remonte comme un 500 générique
- * (voire un 403 trompeur si /error n'est pas autorisé côté SecurityConfig).
- */
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
-    // Ex : email déjà utilisé au register -> conflit métier, pas une erreur serveur
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity
-                .status(HttpStatus.CONFLICT) // 409
+                .status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, ex.getMessage()));
     }
 
-    // Levée par AuthenticationManager quand l'email existe mais le mot de passe est faux
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED) // 401
-                // Message volontairement générique : ne jamais révéler si c'est
-                // l'email ou le mot de passe qui est incorrect.
+                .status(HttpStatus.UNAUTHORIZED)
                 .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Email ou mot de passe incorrect."));
     }
 
-    // Filet de sécurité : toute autre exception imprévue -> 500 générique,
-    // sans jamais exposer la stack trace ou le message technique au client.
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("Accès refusé (rôle insuffisant) : {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(HttpStatus.FORBIDDEN, "Accès refusé : rôle insuffisant."));
+    }
+
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ErrorResponse> handleSecurity(SecurityException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(HttpStatus.FORBIDDEN, ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
+        log.error("Erreur inattendue : ", ex);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ErrorResponse.of(HttpStatus.INTERNAL_SERVER_ERROR, "Une erreur inattendue est survenue."));
+    }
+
+
+    @ExceptionHandler(java.util.NoSuchElementException.class)
+    public ResponseEntity<ErrorResponse> handleNotFound(java.util.NoSuchElementException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ErrorResponse.of(HttpStatus.NOT_FOUND, ex.getMessage()));
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalState(IllegalStateException ex) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, ex.getMessage()));
     }
 
     @Builder

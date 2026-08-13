@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +23,7 @@ public class CampaignController {
     private final CampaignService campaignService;
 
     @PostMapping
+    @PreAuthorize("hasRole('AGENCY_ADMIN')")
     public ResponseEntity<CampaignResponse> create(
             @Valid @RequestBody CreateCampaignRequest request,
             @AuthenticationPrincipal TenantPrincipal principal
@@ -32,6 +34,7 @@ public class CampaignController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('AGENCY_ADMIN', 'CLIENT')")
     public ResponseEntity<Page<CampaignResponse>> list(
             @AuthenticationPrincipal TenantPrincipal principal,
             Pageable pageable
@@ -40,7 +43,28 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.list(tenantId, pageable));
     }
 
+    @GetMapping("/{id}/kpis")
+    @PreAuthorize("hasAnyRole('AGENCY_ADMIN', 'CLIENT')")
+    public ResponseEntity<KpiResponse> getKpis(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        UUID tenantId = UUID.fromString(principal.tenantId());
+        return ResponseEntity.ok(campaignService.getKpis(id, tenantId));
+    }
+
+    @GetMapping("/dashboard")
+    @PreAuthorize("hasAnyRole('AGENCY_ADMIN', 'CLIENT')")
+    public ResponseEntity<DashboardResponse> getDashboard(
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        UUID tenantId = UUID.fromString(principal.tenantId());
+        return ResponseEntity.ok(campaignService.getDashboard(tenantId));
+    }
+
+
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('AGENCY_ADMIN')")
     public ResponseEntity<CampaignResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateCampaignRequest request,
@@ -51,6 +75,7 @@ public class CampaignController {
     }
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasRole('AGENCY_ADMIN')")
     public ResponseEntity<CampaignResponse> changeStatus(
             @PathVariable UUID id,
             @RequestParam CampaignStatus newStatus,
@@ -61,6 +86,7 @@ public class CampaignController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('AGENCY_ADMIN')")
     public ResponseEntity<Void> delete(
             @PathVariable UUID id,
             @AuthenticationPrincipal TenantPrincipal principal
@@ -71,6 +97,7 @@ public class CampaignController {
     }
 
     @PostMapping("/{id}/metrics")
+    @PreAuthorize("hasAnyRole('AGENCY_ADMIN', 'CLIENT')")
     public ResponseEntity<MetricsResponse> recordMetrics(
             @PathVariable UUID id,
             @Valid @RequestBody RecordMetricsRequest request,
