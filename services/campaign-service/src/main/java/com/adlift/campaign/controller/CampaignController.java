@@ -43,6 +43,26 @@ public class CampaignController {
         return ResponseEntity.ok(campaignService.list(tenantId, pageable));
     }
 
+    @GetMapping("/{id}/kpis")
+    @PreAuthorize("hasAnyRole('AGENCY_ADMIN', 'CLIENT')")
+    public ResponseEntity<KpiResponse> getKpis(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        UUID tenantId = UUID.fromString(principal.tenantId());
+        return ResponseEntity.ok(campaignService.getKpis(id, tenantId));
+    }
+
+    @GetMapping("/dashboard")
+    @PreAuthorize("hasAnyRole('AGENCY_ADMIN', 'CLIENT')")
+    public ResponseEntity<DashboardResponse> getDashboard(
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        UUID tenantId = UUID.fromString(principal.tenantId());
+        return ResponseEntity.ok(campaignService.getDashboard(tenantId));
+    }
+
+
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('AGENCY_ADMIN')")
     public ResponseEntity<CampaignResponse> update(

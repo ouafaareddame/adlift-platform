@@ -4,6 +4,7 @@ import com.adlift.campaign.dto.CampaignDTOs.*;
 import com.adlift.campaign.entity.Campaign;
 import com.adlift.campaign.entity.CampaignMetrics;
 import com.adlift.campaign.entity.CampaignStatus;
+import com.adlift.campaign.repository.AggregatedMetrics;
 import com.adlift.campaign.repository.CampaignMetricsRepository;
 import com.adlift.campaign.repository.CampaignRepository;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -126,6 +128,52 @@ public class CampaignService {
         return toMetricsResponse(metrics);
     }
 
+    public KpiResponse getKpis(UUID campaignId, UUID tenantId) {
+        Campaign campaign = getOwnedCampaign(campaignId, tenantId);
+
+        AggregatedMetrics result = metricsRepository.getAggregatedMetrics(campaignId);
+        Long impressions = result.getImpressions();
+        Long clicks = result.getClicks();
+        Long conversions = result.getConversions();
+        BigDecimal budgetSpent = result.getBudgetSpent();
+
+        double ctr = impressions > 0 ? (clicks * 100.0) / impressions : 0.0;
+        double cpc = conversions > 0 ? budgetSpent.doubleValue() / conversions : 0.0;
+
+        return KpiResponse.builder()
+                .campaignId(campaignId)
+                .totalImpressions(impressions)
+                .totalClicks(clicks)
+                .totalConversions(conversions)
+                .totalBudgetSpent(budgetSpent)
+                .averageCtr(ctr)
+                .averageCpc(cpc)
+                .build();
+    }
+
+    // Dans CampaignService.java, ajoute cette méthode (import déjà présent
+// si tu as appliqué le patch de getKpis() : com.adlift.campaign.repository.AggregatedMetrics) :
+
+    public DashboardResponse getDashboard(UUID tenantId) {
+        long total = campaignRepository.countByTenantId(tenantId);
+        long active = campaignRepository.countByTenantIdAndStatus(tenantId, CampaignStatus.ACTIVE);
+
+        AggregatedMetrics result = metricsRepository.getAggregatedMetricsByTenant(tenantId);
+        Long impressions = result.getImpressions();
+        Long clicks = result.getClicks();
+        Long conversions = result.getConversions();
+        BigDecimal budgetSpent = result.getBudgetSpent();
+
+        return DashboardResponse.builder()
+                .totalCampaigns(total)
+                .activeCampaigns(active)
+                .totalImpressions(impressions)
+                .totalClicks(clicks)
+                .totalConversions(conversions)
+                .totalBudgetSpent(budgetSpent)
+                .build();
+    }
+
     // ── Helpers ──
 
     private Campaign getOwnedCampaign(UUID campaignId, UUID tenantId) {
@@ -159,4 +207,6 @@ public class CampaignService {
                 .ctr(ctr).cpc(cpc).recordedAt(m.getRecordedAt())
                 .build();
     }
+
+
 }
