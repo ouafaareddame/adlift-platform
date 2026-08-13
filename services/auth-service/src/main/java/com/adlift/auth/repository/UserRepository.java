@@ -17,4 +17,5 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT u FROM User u WHERE u.tenant.id = :tenantId")
     List<User> findByTenantId(@Param("tenantId") UUID tenantId);
+    boolean existsByTenant_Id(UUID tenantId);
 }
