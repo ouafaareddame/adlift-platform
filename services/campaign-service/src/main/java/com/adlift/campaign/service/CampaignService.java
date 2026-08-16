@@ -4,16 +4,20 @@ import com.adlift.campaign.dto.CampaignDTOs.*;
 import com.adlift.campaign.entity.Campaign;
 import com.adlift.campaign.entity.CampaignMetrics;
 import com.adlift.campaign.entity.CampaignStatus;
+import com.adlift.campaign.entity.CampaignType;
 import com.adlift.campaign.repository.AggregatedMetrics;
 import com.adlift.campaign.repository.CampaignMetricsRepository;
 import com.adlift.campaign.repository.CampaignRepository;
+import com.adlift.campaign.repository.CampaignSpecifications;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -151,8 +155,56 @@ public class CampaignService {
                 .build();
     }
 
-    // Dans CampaignService.java, ajoute cette méthode (import déjà présent
-// si tu as appliqué le patch de getKpis() : com.adlift.campaign.repository.AggregatedMetrics) :
+    public Page<CampaignResponse> search(
+            UUID tenantId,
+            CampaignStatus status,
+            CampaignType type,
+            String keyword,
+            LocalDate startDate,
+            LocalDate endDate,
+            Pageable pageable
+    ) {
+        Specification<Campaign> spec = Specification
+                .where(CampaignSpecifications.hasTenantId(tenantId))
+                .and(CampaignSpecifications.hasStatus(status))
+                .and(CampaignSpecifications.hasType(type))
+                .and(CampaignSpecifications.nameContains(keyword))
+                .and(CampaignSpecifications.startDateBetween(startDate, endDate));
+
+        return campaignRepository.findAll(spec, pageable)
+                .map(this::toResponse);
+    }
+
+    public String exportToCsv(UUID tenantId, CampaignStatus status, CampaignType type) {
+        Specification<Campaign> spec = Specification
+                .where(CampaignSpecifications.hasTenantId(tenantId))
+                .and(CampaignSpecifications.hasStatus(status))
+                .and(CampaignSpecifications.hasType(type));
+
+        List<Campaign> campaigns = campaignRepository.findAll(spec);
+
+        StringBuilder csv = new StringBuilder();
+        csv.append("Nom,Type,Statut,Date début,Date fin,Budget\n");
+
+        for (Campaign c : campaigns) {
+            csv.append(escapeCsv(c.getName())).append(",")
+                    .append(c.getType()).append(",")
+                    .append(c.getStatus()).append(",")
+                    .append(c.getStartDate()).append(",")
+                    .append(c.getEndDate()).append(",")
+                    .append(c.getBudget()).append("\n");
+        }
+
+        return csv.toString();
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) return "";
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
+    }
 
     public DashboardResponse getDashboard(UUID tenantId) {
         long total = campaignRepository.countByTenantId(tenantId);
@@ -207,6 +259,5 @@ public class CampaignService {
                 .ctr(ctr).cpc(cpc).recordedAt(m.getRecordedAt())
                 .build();
     }
-
 
 }

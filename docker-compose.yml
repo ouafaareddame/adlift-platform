@@ -47,6 +47,77 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
 
+  # ───────── Les 4 services Spring Boot ─────────
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+    container_name: auth-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: auth_user
+      SPRING_DATASOURCE_PASSWORD: auth_pass
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: 900000
+    ports:
+      - "8081:8081"
+    depends_on:
+      - auth-db
+
+  campaign-service:
+    build:
+      context: ./services/campaign-service
+    container_name: campaign-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://campaign-db:5432/campaign_db
+      SPRING_DATASOURCE_USERNAME: campaign_user
+      SPRING_DATASOURCE_PASSWORD: campaign_pass
+      JWT_SECRET: ${JWT_SECRET}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+    ports:
+      - "8082:8082"
+    depends_on:
+      - campaign-db
+      - rabbitmq
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+    container_name: notification-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://notification-db:5432/notification_db
+      SPRING_DATASOURCE_USERNAME: notification_user
+      SPRING_DATASOURCE_PASSWORD: notification_pass
+      JWT_SECRET: ${JWT_SECRET}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+    ports:
+      - "8083:8083"
+    depends_on:
+      - notification-db
+      - rabbitmq
+
+  api-gateway:
+    build:
+      context: ./infrastructure/api-gateway
+    container_name: api-gateway
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      AUTH_SERVICE_URI: http://auth-service:8081
+      CAMPAIGN_SERVICE_URI: http://campaign-service:8082
+      NOTIFICATION_SERVICE_URI: http://notification-service:8083
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - campaign-service
+      - notification-service
+
 volumes:
   auth-db-data:
   campaign-db-data:
