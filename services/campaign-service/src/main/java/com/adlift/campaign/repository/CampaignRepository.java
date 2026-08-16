@@ -6,11 +6,12 @@ import com.adlift.campaign.entity.CampaignType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.time.LocalDate;
 import java.util.UUID;
 
-public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
+public interface CampaignRepository extends JpaRepository<Campaign, UUID>, JpaSpecificationExecutor<Campaign> {
 
     // Isolation multi-tenant : toujours filtrer par tenantId
     Page<Campaign> findByTenantId(UUID tenantId, Pageable pageable);
