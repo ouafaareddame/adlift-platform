@@ -3,25 +3,13 @@ package com.adlift.auth.dto;
 import com.adlift.auth.entity.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Builder;
 import lombok.Data;
 
 import java.util.UUID;
 
 public class AuthDTOs {
-
-    // ── Requête d'inscription ──
-    @Data
-    public static class RegisterRequest {
-        @NotBlank
-        private String tenantName;
-
-        @Email @NotBlank
-        private String email;
-
-        @NotBlank
-        private String password;
-    }
 
     // ── Requête de login ──
     @Data
@@ -33,7 +21,16 @@ public class AuthDTOs {
         private String password;
     }
 
-    // ── Réponse après register/login ──
+    @Data
+    public static class ChangePasswordRequest {
+        @NotBlank
+        private String currentPassword;
+
+        @NotBlank @Size(min = 8, message = "doit contenir au moins 8 caractères")
+        private String newPassword;
+    }
+
+    // ── Réponse après login ──
     @Data @Builder
     public static class AuthResponse {
         private String accessToken;
@@ -48,5 +45,6 @@ public class AuthDTOs {
         private UUID tenantId;
         private String email;
         private Role role;
+        private boolean mustChangePassword;
     }
 }

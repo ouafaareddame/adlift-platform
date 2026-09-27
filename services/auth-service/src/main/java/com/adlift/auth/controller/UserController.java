@@ -49,6 +49,16 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{id}/activate")
+    @PreAuthorize("hasRole('AGENCY_ADMIN')")
+    public ResponseEntity<Void> activate(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        memberService.activate(id, currentUser.getTenantId());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('AGENCY_ADMIN')")
     public ResponseEntity<List<MemberResponse>> list(

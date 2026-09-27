@@ -1,8 +1,10 @@
 package com.adlift.auth.service;
 
 import com.adlift.auth.dto.MemberDTOs.*;
+import com.adlift.auth.entity.Role;
 import com.adlift.auth.entity.Tenant;
 import com.adlift.auth.entity.User;
+import com.adlift.auth.exception.BadRequestException;
 import com.adlift.auth.repository.TenantRepository;
 import com.adlift.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -28,8 +31,10 @@ public class MemberService {
             throw new IllegalArgumentException("Cet email est déjà utilisé.");
         }
 
+        assertAssignableRole(request.getRole());
+
         Tenant tenant = tenantRepository.findById(tenantId)
-                .orElseThrow(() -> new IllegalArgumentException("Tenant non trouvé."));
+                .orElseThrow(() -> new NoSuchElementException("Tenant non trouvé."));
 
         User user = userRepository.save(User.builder()
                 .tenant(tenant)
@@ -37,6 +42,7 @@ public class MemberService {
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole())
                 .isActive(true)
+                .mustChangePassword(true)
                 .build());
 
         return toResponse(user);
@@ -44,7 +50,11 @@ public class MemberService {
 
     @Transactional
     public MemberResponse updateRole(UUID memberId, UpdateRoleRequest request, UUID tenantId) {
+        assertAssignableRole(request.getRole());
         User member = getOwnedMember(memberId, tenantId);
+        if (request.getRole() != Role.AGENCY_ADMIN) {
+            assertNotLastActiveAdmin(member, tenantId);
+        }
         member.setRole(request.getRole());
         return toResponse(userRepository.save(member));
     }
@@ -52,7 +62,15 @@ public class MemberService {
     @Transactional
     public void deactivate(UUID memberId, UUID tenantId) {
         User member = getOwnedMember(memberId, tenantId);
+        assertNotLastActiveAdmin(member, tenantId);
         member.setActive(false);
+        userRepository.save(member);
+    }
+
+    @Transactional
+    public void activate(UUID memberId, UUID tenantId) {
+        User member = getOwnedMember(memberId, tenantId);
+        member.setActive(true);
         userRepository.save(member);
     }
 
@@ -62,9 +80,24 @@ public class MemberService {
                 .collect(Collectors.toList());
     }
 
+    private void assertAssignableRole(Role role) {
+        if (role == Role.SUPER_ADMIN) {
+            throw new BadRequestException(
+                    "Impossible d'attribuer le rôle SUPER_ADMIN depuis un tenant.");
+        }
+    }
+
+    private void assertNotLastActiveAdmin(User member, UUID tenantId) {
+        boolean isActiveAdmin = member.getRole() == Role.AGENCY_ADMIN && member.isActive();
+        if (isActiveAdmin && userRepository.countByTenant_IdAndRoleAndIsActiveTrue(tenantId, Role.AGENCY_ADMIN) <= 1) {
+            throw new IllegalStateException(
+                    "Impossible : c'est le dernier administrateur actif de cet espace.");
+        }
+    }
+
     private User getOwnedMember(UUID memberId, UUID tenantId) {
         User member = userRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Membre non trouvé."));
+                .orElseThrow(() -> new NoSuchElementException("Membre non trouvé."));
 
         if (!member.getTenantId().equals(tenantId)) {
             throw new SecurityException("Accès refusé : ce membre n'appartient pas à votre tenant.");

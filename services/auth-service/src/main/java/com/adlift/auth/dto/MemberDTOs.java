@@ -4,6 +4,7 @@ import com.adlift.auth.entity.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Builder;
 import lombok.Data;
 
@@ -17,7 +18,7 @@ public class MemberDTOs {
         @Email @NotBlank
         private String email;
 
-        @NotBlank
+        @NotBlank @Size(min = 8, message = "doit contenir au moins 8 caractères")
         private String password; // mot de passe temporaire, à changer idéalement au premier login
 
         @NotNull

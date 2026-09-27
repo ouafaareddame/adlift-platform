@@ -1,5 +1,6 @@
 package com.adlift.auth.security;
 
+import com.adlift.auth.entity.TenantStatus;
 import com.adlift.auth.entity.User;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -31,7 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
-        log.info("[JWT Filter] Requête : {} | Header présent : {}", request.getRequestURI(), authHeader != null);
+        log.debug("[JWT Filter] Requête : {} | Header présent : {}", request.getRequestURI(), authHeader != null);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
@@ -42,19 +43,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             String email = jwtService.extractEmail(token);
-            log.info("[JWT Filter] Email extrait du token : {}", email);
+            log.debug("[JWT Filter] Email extrait du token : {}", email);
 
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
-                log.info("[JWT Filter] UserDetails chargé : {}", userDetails.getUsername());
+                log.debug("[JWT Filter] UserDetails chargé : {}", userDetails.getUsername());
 
-                if (jwtService.isTokenValid(token, (User) userDetails)) {
+                User user = (User) userDetails;
+                boolean tenantActive = user.getTenant() != null
+                        && user.getTenant().getStatus() == TenantStatus.ACTIVE;
+
+                if (!user.isEnabled() || !tenantActive) {
+                    log.warn("[JWT Filter] Compte ou tenant inactif : {}", email);
+                    SecurityContextHolder.clearContext();
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    return;
+                }
+
+                if (jwtService.isTokenValid(token, user)) {
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(
                                     userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
-                    log.info("[JWT Filter] Authentification réussie pour : {}", email);
+                    log.debug("[JWT Filter] Authentification réussie pour : {}", email);
                 } else {
                     log.warn("[JWT Filter] Token invalide pour : {}", email);
                 }
