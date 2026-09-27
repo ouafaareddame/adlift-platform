@@ -12,14 +12,34 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
 jwt:
   secret: unSecretTresLongEtAleatoirePourSignerLesTokensJWT1234567890
 
+ad-simulator:
+  enabled: ${AD_SIMULATOR_ENABLED:true}
+  interval-ms: ${AD_SIMULATOR_INTERVAL_MS:30000}
+
+email:
+  brevo:
+    base-url: https://api.brevo.com/v3
+    api-key: ${BREVO_API_KEY:}
+  sender:
+    email: ${BREVO_SENDER_EMAIL:}
+    name: ${BREVO_SENDER_NAME:Adlift}
+  cost-per-email: 0.01
+  sync-interval-ms: ${EMAIL_SYNC_INTERVAL_MS:300000}
+
 logging:
   level:
-    com.adlift: DEBUG
+    com.adlift: INFO

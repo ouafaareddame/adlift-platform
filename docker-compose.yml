@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   auth-db:
     image: postgres:15
@@ -58,7 +56,9 @@ services:
       SPRING_DATASOURCE_USERNAME: auth_user
       SPRING_DATASOURCE_PASSWORD: auth_pass
       JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION: 900000
+      JWT_EXPIRATION: "900000"
+      ADLIFT_ADMIN_EMAIL: ${ADLIFT_ADMIN_EMAIL:-direction@adlift.ma}
+      ADLIFT_ADMIN_PASSWORD: ${ADLIFT_ADMIN_PASSWORD:-Adlift@2026}
     ports:
       - "8081:8081"
     depends_on:
@@ -77,6 +77,12 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      AD_SIMULATOR_ENABLED: ${AD_SIMULATOR_ENABLED:-true}
+      AD_SIMULATOR_INTERVAL_MS: ${AD_SIMULATOR_INTERVAL_MS:-30000}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL:-}
+      BREVO_SENDER_NAME: ${BREVO_SENDER_NAME:-Adlift}
+      EMAIL_SYNC_INTERVAL_MS: ${EMAIL_SYNC_INTERVAL_MS:-300000}
     ports:
       - "8082:8082"
     depends_on:
