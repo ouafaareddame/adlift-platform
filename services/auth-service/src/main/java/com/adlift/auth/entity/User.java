@@ -48,6 +48,11 @@ public class User implements UserDetails {
     @Builder.Default
     private boolean isActive = true;
 
+    // Le default SQL permet à ddl-auto d'ajouter la colonne sur une table déjà remplie.
+    @Column(name = "must_change_password", nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean mustChangePassword = false;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Role role;
@@ -92,5 +97,5 @@ public class User implements UserDetails {
     public boolean isCredentialsNonExpired() { return true; }
 
     @Override
-    public boolean isEnabled() { return true; }
+    public boolean isEnabled() { return isActive; }
 }

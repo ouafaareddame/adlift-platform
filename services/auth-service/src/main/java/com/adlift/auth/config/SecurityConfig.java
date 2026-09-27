@@ -38,7 +38,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(8);
     }
 
     @Bean
@@ -67,7 +67,7 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )

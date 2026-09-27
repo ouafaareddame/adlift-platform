@@ -9,6 +9,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public class CampaignDTOs {
@@ -78,6 +79,11 @@ public class CampaignDTOs {
         private LocalDate startDate;
         private LocalDate endDate;
         private BigDecimal budget;
+        private BigDecimal spent;
+        /** Pourcentage du budget consommé, null si le budget est 0. */
+        private Double budgetUsage;
+        /** Campagne EMAIL réellement envoyée : ses métriques viennent de Brevo. */
+        private boolean emailSent;
         private LocalDateTime createdAt;
     }
 
@@ -112,6 +118,70 @@ public class CampaignDTOs {
         private Long totalClicks;
         private Long totalConversions;
         private BigDecimal totalBudgetSpent;
+        private BigDecimal totalBudget;
+        private Long nearBudgetCount;
+        private Long overBudgetCount;
+        private List<BudgetAlert> budgetAlerts;
+    }
+
+    @Data @Builder
+    public static class BudgetAlert {
+        private UUID campaignId;
+        private String name;
+        private CampaignStatus status;
+        private BigDecimal budget;
+        private BigDecimal spent;
+        private Double budgetUsage;
+        private boolean overBudget;
+    }
+
+    // ── Vue direction (SUPER_ADMIN) : un résumé par espace client ──
+    @Data @Builder
+    public static class TenantOverview {
+        private UUID tenantId;
+        private long campaigns;
+        private long activeCampaigns;
+        private BigDecimal budget;
+        private BigDecimal spent;
+        private long impressions;
+        private long clicks;
+        private long conversions;
+        private long nearBudgetCount;
+        private long overBudgetCount;
+    }
+
+    @Data @Builder
+    public static class OverviewResponse {
+        private List<TenantOverview> tenants;
+        private TenantOverview totals;
+    }
+
+    // ── Rapport par période ──
+    @Data @Builder
+    public static class ReportRow {
+        private UUID campaignId;
+        private String name;
+        private CampaignType type;
+        private CampaignStatus status;
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private BigDecimal budget;
+        private long impressions;
+        private long clicks;
+        private long conversions;
+        private BigDecimal spent;
+        private Double ctr;
+        private Double cpc;
+        private Double conversionRate;
+    }
+
+    @Data @Builder
+    public static class ReportResponse {
+        private UUID tenantId;
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private List<ReportRow> rows;
+        private ReportRow totals;
     }
 
 }

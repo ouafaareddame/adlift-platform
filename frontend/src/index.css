@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/*
+  Palette inspirée des deux références (earnwave / Intellecta) :
+  - Fond doux bleu-gris (pas de blanc pur, moins fatiguant sur un dashboard consulté toute la journée)
+  - Cartes blanches avec ombre légère, coins bien arrondis
+  - Texte marine foncé (pas de noir pur)
+  - Un seul accent : bleu du logo Adlift, réservé aux actions principales et aux états actifs
+  - Un accent secondaire discret (vert émeraude) pour les statuts positifs (ACTIVE, succès)
+*/
+@theme {
+  --color-background: #eaf2f7;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f3f7fa;
+
+  --color-ink: #1b2430;
+  --color-ink-muted: #6b7684;
+  --color-ink-subtle: #9aa4b1;
+
+  --color-accent: #155686;
+  --color-accent-hover: #0f4368;
+  --color-accent-soft: #e4eef5;
+
+  --color-success: #059669;
+  --color-success-soft: #ecfdf5;
+  --color-warning: #d97706;
+  --color-warning-soft: #fffbeb;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+
+  --radius-card: 1.25rem;
+  --radius-control: 0.75rem;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-ink);
+  font-feature-settings: "cv11", "ss01";
+}

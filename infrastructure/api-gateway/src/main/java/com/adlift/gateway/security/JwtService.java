@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.util.Optional;
 
 @Service
 public class JwtService {
@@ -15,21 +16,21 @@ public class JwtService {
     @Value("${jwt.secret}")
     private String secret;
 
-    public boolean isTokenValid(String token) {
+    /** Claims du jeton s'il est signé et non expiré, vide sinon. */
+    public Optional<Claims> parse(String token) {
         try {
-            getClaims(token);
-            return true;
+            return Optional.of(Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload());
         } catch (JwtException | IllegalArgumentException e) {
-            return false;
+            return Optional.empty();
         }
     }
 
-    private Claims getClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+    public boolean mustChangePassword(Claims claims) {
+        return Boolean.TRUE.equals(claims.get("mustChangePassword", Boolean.class));
     }
 
     private SecretKey getSigningKey() {

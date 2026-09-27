@@ -8,6 +8,24 @@ spring:
     gateway:
       server:
         webflux:
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 8s
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOriginPatterns:
+                  - "http://localhost:*"
+                  - "http://127.0.0.1:*"
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - PATCH
+                  - DELETE
+                  - OPTIONS
+                allowedHeaders: "*"
+                allowCredentials: true
           routes:
             - id: auth-service
               uri: ${AUTH_SERVICE_URI:http://localhost:8081}
@@ -39,5 +57,5 @@ jwt:
 
 logging:
   level:
-    com.adlift: DEBUG
-    org.springframework.cloud.gateway: DEBUG
+    com.adlift: INFO
+    org.springframework.cloud.gateway: INFO

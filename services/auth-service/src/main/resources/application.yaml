@@ -9,8 +9,15 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
 
 jwt:
   secret: unSecretTresLongEtAleatoirePourSignerLesTokensJWT1234567890
-  expiration: 900000
+  expiration: ${JWT_EXPIRATION:900000}
+
+adlift:
+  platform:
+    name: ${ADLIFT_PLATFORM_NAME:Adlift SARL}
+    email: ${ADLIFT_PLATFORM_EMAIL:contact@adlift.ma}
+    admin-email: ${ADLIFT_ADMIN_EMAIL:direction@adlift.ma}
+    admin-password: ${ADLIFT_ADMIN_PASSWORD:Adlift@2026}

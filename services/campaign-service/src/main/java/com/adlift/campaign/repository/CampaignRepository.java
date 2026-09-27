@@ -9,12 +9,18 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public interface CampaignRepository extends JpaRepository<Campaign, UUID>, JpaSpecificationExecutor<Campaign> {
 
     // Isolation multi-tenant : toujours filtrer par tenantId
     Page<Campaign> findByTenantId(UUID tenantId, Pageable pageable);
+
+    List<Campaign> findAllByTenantId(UUID tenantId);
+
+    // Jobs système uniquement (simulateur) : volontairement tous tenants confondus.
+    List<Campaign> findByStatus(CampaignStatus status);
 
     Page<Campaign> findByTenantIdAndStatus(UUID tenantId, CampaignStatus status, Pageable pageable);
 

@@ -1,10 +1,13 @@
 package com.adlift.campaign.controller;
 
 import com.adlift.campaign.dto.CampaignDTOs.*;
+import com.adlift.campaign.dto.EmailDTOs.EmailResponse;
+import com.adlift.campaign.dto.EmailDTOs.SaveEmailRequest;
 import com.adlift.campaign.entity.CampaignStatus;
 import com.adlift.campaign.entity.CampaignType;
 import com.adlift.campaign.security.TenantPrincipal;
 import com.adlift.campaign.service.CampaignService;
+import com.adlift.campaign.service.EmailCampaignService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -16,6 +19,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -24,6 +28,7 @@ import java.util.UUID;
 public class CampaignController {
 
     private final CampaignService campaignService;
+    private final EmailCampaignService emailCampaignService;
 
     @PostMapping
     @PreAuthorize("hasRole('AGENCY_ADMIN')")
@@ -97,6 +102,73 @@ public class CampaignController {
                 .body(csv);
     }
 
+    @GetMapping("/overview")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<OverviewResponse> getOverview() {
+        return ResponseEntity.ok(campaignService.getOverview());
+    }
+
+    @GetMapping("/report")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'AGENCY_ADMIN', 'CLIENT')")
+    public ResponseEntity<ReportResponse> getReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) UUID tenantId,
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        return ResponseEntity.ok(campaignService.getReport(
+                reportTenant(principal, tenantId), startDate, endDate));
+    }
+
+    @GetMapping("/report/export")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'AGENCY_ADMIN', 'CLIENT')")
+    public ResponseEntity<String> exportReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) UUID tenantId,
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        String csv = campaignService.exportReportToCsv(
+                reportTenant(principal, tenantId), startDate, endDate);
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/csv; charset=UTF-8")
+                .header("Content-Disposition",
+                        "attachment; filename=report-" + startDate + "-" + endDate + ".csv")
+                .body(csv);
+    }
+
+    /** La direction choisit l'espace ; les autres rôles restent sur le leur. */
+    private UUID reportTenant(TenantPrincipal principal, UUID requestedTenantId) {
+        if ("SUPER_ADMIN".equals(principal.role())) {
+            if (requestedTenantId == null) {
+                throw new IllegalArgumentException("Choisissez un espace client pour le rapport.");
+            }
+            return requestedTenantId;
+        }
+        return UUID.fromString(principal.tenantId());
+    }
+
+    @GetMapping("/{id}/metrics")
+    @PreAuthorize("hasAnyRole('AGENCY_ADMIN', 'CLIENT')")
+    public ResponseEntity<List<MetricsResponse>> getMetricsHistory(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        UUID tenantId = UUID.fromString(principal.tenantId());
+        return ResponseEntity.ok(campaignService.getMetricsHistory(id, tenantId));
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('AGENCY_ADMIN', 'CLIENT')")
+    public ResponseEntity<CampaignResponse> getById(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        UUID tenantId = UUID.fromString(principal.tenantId());
+        return ResponseEntity.ok(campaignService.getById(id, tenantId));
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('AGENCY_ADMIN')")
     public ResponseEntity<CampaignResponse> update(
@@ -116,7 +188,8 @@ public class CampaignController {
             @AuthenticationPrincipal TenantPrincipal principal
     ) {
         UUID tenantId = UUID.fromString(principal.tenantId());
-        return ResponseEntity.ok(campaignService.changeStatus(id, newStatus, tenantId));
+        UUID actorId = UUID.fromString(principal.userId());
+        return ResponseEntity.ok(campaignService.changeStatus(id, newStatus, tenantId, actorId));
     }
 
     @DeleteMapping("/{id}")
@@ -130,8 +203,49 @@ public class CampaignController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{id}/metrics")
+    @GetMapping("/{id}/email")
     @PreAuthorize("hasAnyRole('AGENCY_ADMIN', 'CLIENT')")
+    public ResponseEntity<EmailResponse> getEmail(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        UUID tenantId = UUID.fromString(principal.tenantId());
+        return ResponseEntity.ok(emailCampaignService.get(id, tenantId));
+    }
+
+    @PutMapping("/{id}/email")
+    @PreAuthorize("hasRole('AGENCY_ADMIN')")
+    public ResponseEntity<EmailResponse> saveEmail(
+            @PathVariable UUID id,
+            @Valid @RequestBody SaveEmailRequest request,
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        UUID tenantId = UUID.fromString(principal.tenantId());
+        return ResponseEntity.ok(emailCampaignService.save(id, request, tenantId));
+    }
+
+    @PostMapping("/{id}/email/send")
+    @PreAuthorize("hasRole('AGENCY_ADMIN')")
+    public ResponseEntity<EmailResponse> sendEmail(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        UUID tenantId = UUID.fromString(principal.tenantId());
+        return ResponseEntity.ok(emailCampaignService.send(id, tenantId));
+    }
+
+    @PostMapping("/{id}/email/sync")
+    @PreAuthorize("hasAnyRole('AGENCY_ADMIN', 'CLIENT')")
+    public ResponseEntity<EmailResponse> syncEmail(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal TenantPrincipal principal
+    ) {
+        UUID tenantId = UUID.fromString(principal.tenantId());
+        return ResponseEntity.ok(emailCampaignService.sync(id, tenantId));
+    }
+
+    @PostMapping("/{id}/metrics")
+    @PreAuthorize("hasRole('AGENCY_ADMIN')")
     public ResponseEntity<MetricsResponse> recordMetrics(
             @PathVariable UUID id,
             @Valid @RequestBody RecordMetricsRequest request,
