@@ -44,6 +44,11 @@ public class TenantController {
         return ResponseEntity.ok(tenantService.members(id));
     }
 
+    @PostMapping("/{id}/members")
+    public ResponseEntity<MemberAccessResponse> addMember(@PathVariable UUID id, @Valid @RequestBody AddMemberRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(tenantService.addMember(id, request));
+    }
+
     @PostMapping("/{id}/members/{userId}/reset-password")
     public ResponseEntity<PasswordResetResponse> resetPassword(@PathVariable UUID id, @PathVariable UUID userId) {
         return ResponseEntity.ok(tenantService.resetMemberPassword(id, userId));

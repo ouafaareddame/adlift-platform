@@ -1,5 +1,6 @@
 package com.adlift.auth.config;
 
+import com.adlift.auth.repository.MembershipRepository;
 import com.adlift.auth.repository.UserRepository;
 import com.adlift.auth.security.JwtAuthenticationFilter;
 import com.adlift.auth.security.JwtService;
@@ -28,6 +29,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final UserRepository userRepository;
+    private final MembershipRepository membershipRepository;
     private final JwtService jwtService;
 
     @Bean
@@ -60,7 +62,7 @@ public class SecurityConfig {
         // en @Component + injection constructeur créait un cycle Spring
         // (SecurityConfig -> JwtAuthenticationFilter -> UserDetailsService -> SecurityConfig).
         JwtAuthenticationFilter jwtAuthenticationFilter =
-                new JwtAuthenticationFilter(jwtService, userDetailsService());
+                new JwtAuthenticationFilter(jwtService, userDetailsService(), membershipRepository);
 
         http
                 .csrf(csrf -> csrf.disable())

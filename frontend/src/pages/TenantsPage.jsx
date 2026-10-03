@@ -20,10 +20,12 @@ function apiError(err) {
   const map = {
     "Un tenant avec cet email existe déjà.": "A client workspace with this contact email already exists.",
     "Un tenant avec ce nom existe déjà.": "A client workspace with this name already exists.",
-    "Cet email est déjà utilisé.": "This admin email is already used by another login.",
+    "Cet email est déjà utilisé.": "This account manager email is already used by another login.",
     "Tenant introuvable.": "Client workspace not found.",
     "L'espace de la plateforme Adlift ne peut pas être modifié.": "The Adlift platform workspace cannot be changed.",
     "Membre non trouvé.": "This login no longer belongs to the workspace.",
+    "Ce compte a déjà accès à cet espace.": "This login already has access to this workspace.",
+    "Impossible d'attribuer le rôle SUPER_ADMIN depuis un tenant.": "The direction role cannot be given in a client workspace.",
   };
   if (raw && map[raw]) return map[raw];
   return raw || "Something went wrong. Please try again.";
@@ -65,7 +67,11 @@ export default function TenantsPage() {
     mutationFn: createTenant,
     onSuccess: (tenant, variables) => {
       setOpen(false);
-      setCreated({ name: tenant.name, email: variables.adminEmail, password: variables.adminPassword });
+      setCreated({
+        name: tenant.name,
+        email: variables.adminEmail,
+        password: tenant.adminNewAccount === false ? null : variables.adminPassword,
+      });
       setCopied(false);
       setForm(emptyForm);
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
@@ -106,9 +112,9 @@ export default function TenantsPage() {
   }
 
   async function copyCredentials() {
-    const ok = await copyText(`Email: ${created.email}\nTemporary password: ${created.password}`);
+    const ok = await copyText(created.password);
     if (ok) setCopied(true);
-    else notify("Could not copy automatically. Select the credentials and copy them manually.", "error");
+    else notify("Could not copy automatically. Select the password and copy it manually.", "error");
   }
 
   return (
@@ -117,7 +123,7 @@ export default function TenantsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Client workspaces</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Each Adlift client gets an isolated workspace and a first admin login.
+            Each Adlift client gets an isolated workspace, run by an Adlift account manager.
           </p>
         </div>
         <Button variant="accent" onClick={openForm}>
@@ -131,19 +137,30 @@ export default function TenantsPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="text-sm text-ink">
               <p className="font-semibold">{created.name} is ready.</p>
-              <p className="mt-1 text-ink-muted">
-                Share these credentials with the workspace admin — no email is sent. They will choose their own
-                password at first sign-in.
-              </p>
-              <p className="mt-2 font-mono text-xs">
-                {created.email} · {created.password}
-              </p>
+              {created.password ? (
+                <>
+                  <p className="mt-1 text-ink-muted">
+                    Share these credentials with the account manager — no email is sent. They will choose their
+                    own password at first sign-in.
+                  </p>
+                  <p className="mt-2 font-mono text-xs">
+                    {created.email} · {created.password}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-ink-muted">
+                  {created.email} already has a login: they keep their password and open {created.name} from
+                  their workspace menu.
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" className="text-xs" onClick={copyCredentials}>
-                <Copy size={14} />
-                {copied ? "Copied" : "Copy credentials"}
-              </Button>
+              {created.password && (
+                <Button variant="ghost" className="text-xs" onClick={copyCredentials}>
+                  <Copy size={14} />
+                  {copied ? "Copied" : "Copy password"}
+                </Button>
+              )}
               <Button variant="ghost" className="text-xs" onClick={() => setCreated(null)}>
                 Dismiss
               </Button>
@@ -159,7 +176,7 @@ export default function TenantsPage() {
               <tr>
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="px-4 py-3 font-medium">Contact email</th>
-                <th className="px-4 py-3 font-medium">Workspace admin</th>
+                <th className="px-4 py-3 font-medium">Account manager</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
@@ -282,13 +299,14 @@ export default function TenantsPage() {
               </label>
 
               <div className="mt-2 border-t border-slate-100 pt-4">
-                <p className="text-sm font-semibold text-ink">First workspace admin</p>
+                <p className="text-sm font-semibold text-ink">Account manager</p>
                 <p className="mt-0.5 text-xs text-ink-muted">
-                  This person manages campaigns and members for the client.
+                  The Adlift team member who runs this client's campaigns. If they already follow other clients,
+                  enter their usual email: the temporary password is then ignored.
                 </p>
               </div>
               <label className="flex flex-col gap-1.5 text-sm font-medium text-ink">
-                Admin email
+                Account manager email
                 <input
                   required
                   type="email"

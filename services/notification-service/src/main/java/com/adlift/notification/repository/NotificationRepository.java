@@ -7,9 +7,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.UUID;
 
+/** Filtré par utilisateur et par espace : un compte multi-espaces ne voit que celles de l'espace ouvert. */
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
-    Page<Notification> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+    Page<Notification> findByUserIdAndTenantIdOrderByCreatedAtDesc(UUID userId, UUID tenantId, Pageable pageable);
 
-    long countByUserIdAndIsReadFalse(UUID userId);
+    long countByUserIdAndTenantIdAndIsReadFalse(UUID userId, UUID tenantId);
 }

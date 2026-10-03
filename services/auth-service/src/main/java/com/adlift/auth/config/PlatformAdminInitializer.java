@@ -1,9 +1,11 @@
 package com.adlift.auth.config;
 
+import com.adlift.auth.entity.Membership;
 import com.adlift.auth.entity.Role;
 import com.adlift.auth.entity.Tenant;
 import com.adlift.auth.entity.TenantStatus;
 import com.adlift.auth.entity.User;
+import com.adlift.auth.repository.MembershipRepository;
 import com.adlift.auth.repository.TenantRepository;
 import com.adlift.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,12 +23,14 @@ import org.springframework.transaction.annotation.Transactional;
  * doit exister au démarrage : c'est lui qui ouvre ensuite les espaces clients.
  */
 @Component
+@Order(1)
 @RequiredArgsConstructor
 @Slf4j
 public class PlatformAdminInitializer implements ApplicationRunner {
 
     private final UserRepository userRepository;
     private final TenantRepository tenantRepository;
+    private final MembershipRepository membershipRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${adlift.platform.name}")
@@ -43,7 +48,7 @@ public class PlatformAdminInitializer implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (userRepository.existsByRole(Role.SUPER_ADMIN)) {
+        if (membershipRepository.existsByRole(Role.SUPER_ADMIN)) {
             return;
         }
         if (userRepository.existsByEmail(adminEmail)) {
@@ -52,7 +57,7 @@ public class PlatformAdminInitializer implements ApplicationRunner {
         }
 
         Tenant existing = tenantRepository.findByName(platformName).orElse(null);
-        if (existing != null && userRepository.existsByTenant_Id(existing.getId())) {
+        if (existing != null && membershipRepository.existsByTenant_Id(existing.getId())) {
             log.warn("Compte direction non créé : l'espace « {} » appartient déjà à un client. "
                     + "Définissez ADLIFT_PLATFORM_NAME avec un autre nom.", platformName);
             return;
@@ -69,13 +74,16 @@ public class PlatformAdminInitializer implements ApplicationRunner {
                 .status(TenantStatus.ACTIVE)
                 .build());
 
-        userRepository.save(User.builder()
-                .tenant(platform)
+        User admin = userRepository.save(User.builder()
                 .email(adminEmail)
                 .passwordHash(passwordEncoder.encode(adminPassword))
-                .role(Role.SUPER_ADMIN)
                 .isActive(true)
                 .mustChangePassword(true)
+                .build());
+        membershipRepository.save(Membership.builder()
+                .user(admin)
+                .tenant(platform)
+                .role(Role.SUPER_ADMIN)
                 .build());
 
         log.info("Compte direction Adlift créé : {}", adminEmail);

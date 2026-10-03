@@ -28,15 +28,16 @@ public class NotificationController {
             Pageable pageable
     ) {
         UUID userId = UUID.fromString(principal.userId());
-        Page<Notification> notifications =
-                notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+        Page<Notification> notifications = notificationRepository.findByUserIdAndTenantIdOrderByCreatedAtDesc(
+                userId, UUID.fromString(principal.tenantId()), pageable);
         return ResponseEntity.ok(notifications.map(this::toResponse));
     }
 
     @GetMapping("/unread-count")
     public ResponseEntity<Long> unreadCount(@AuthenticationPrincipal TenantPrincipal principal) {
         UUID userId = UUID.fromString(principal.userId());
-        return ResponseEntity.ok(notificationRepository.countByUserIdAndIsReadFalse(userId));
+        return ResponseEntity.ok(notificationRepository.countByUserIdAndTenantIdAndIsReadFalse(
+                userId, UUID.fromString(principal.tenantId())));
     }
 
     @PatchMapping("/{id}/read")

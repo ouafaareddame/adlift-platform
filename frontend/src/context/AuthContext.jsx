@@ -15,23 +15,30 @@ export function AuthProvider({ children }) {
     return stored ? JSON.parse(stored) : null;
   });
 
-  const persistSession = (accessToken, userInfo) => {
+  // Every auth response carries the token for one workspace plus the list of all workspaces of the account.
+  const persistSession = ({ accessToken, user: userInfo, workspaces = [] }) => {
+    const session = { ...userInfo, workspaces };
     localStorage.setItem("adlift_token", accessToken);
-    localStorage.setItem("adlift_user", JSON.stringify(userInfo));
-    setUser(userInfo);
-    return userInfo;
+    localStorage.setItem("adlift_user", JSON.stringify(session));
+    localStorage.setItem("adlift_workspace", userInfo.tenantId);
+    setUser(session);
+    return session;
   };
 
   const login = useCallback(async (email, password) => {
-    const response = await apiClient.post("/api/auth/login", { email, password });
-    const { accessToken, user: userInfo } = response.data;
-    return persistSession(accessToken, userInfo);
+    const tenantId = localStorage.getItem("adlift_workspace") || undefined;
+    const response = await apiClient.post("/api/auth/login", { email, password, tenantId });
+    return persistSession(response.data);
+  }, []);
+
+  const switchWorkspace = useCallback(async (tenantId) => {
+    const response = await apiClient.post("/api/auth/switch", { tenantId });
+    return persistSession(response.data);
   }, []);
 
   const changePassword = useCallback(async (currentPassword, newPassword) => {
     const response = await apiClient.post("/api/auth/change-password", { currentPassword, newPassword });
-    const { accessToken, user: userInfo } = response.data;
-    return persistSession(accessToken, userInfo);
+    return persistSession(response.data);
   }, []);
 
   const logout = useCallback(() => {
@@ -48,8 +55,7 @@ export function AuthProvider({ children }) {
     async function refresh() {
       try {
         const response = await apiClient.post("/api/auth/refresh");
-        const { accessToken, user: userInfo } = response.data;
-        persistSession(accessToken, userInfo);
+        persistSession(response.data);
       } catch {
         /* 401 interceptor logs the user out */
       }
@@ -69,6 +75,7 @@ export function AuthProvider({ children }) {
     user,
     isAuthenticated: !!user,
     login,
+    switchWorkspace,
     changePassword,
     logout,
     // Pratique pour les vérifications de rôle dans les composants :

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Search, Bell, Menu, ChevronDown, KeyRound, LogOut } from "lucide-react";
+import { Search, Bell, Menu, Check, ChevronDown, KeyRound, LogOut } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -11,6 +11,9 @@ import {
   notificationTarget,
   translateNotification,
 } from "@/api/notifications";
+import { roleLabel } from "@/lib/roles";
+import { useFeedback } from "@/context/FeedbackContext";
+import { homeForRole } from "@/routes/ProtectedRoute";
 
 function formatWhen(value) {
   if (!value) return "";
@@ -25,7 +28,9 @@ function formatWhen(value) {
 }
 
 export default function TopBar({ onMenu }) {
-  const { user, logout } = useAuth();
+  const { user, logout, switchWorkspace } = useAuth();
+  const { notify } = useFeedback();
+  const workspaces = user?.workspaces || [];
   const [accountOpen, setAccountOpen] = useState(false);
   const accountRef = useRef(null);
   const queryClient = useQueryClient();
@@ -78,6 +83,20 @@ export default function TopBar({ onMenu }) {
     }
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open, accountOpen]);
+
+  async function openWorkspace(workspace) {
+    setAccountOpen(false);
+    if (workspace.tenantId === user?.tenantId) return;
+    try {
+      const session = await switchWorkspace(workspace.tenantId);
+      // Cached pages belong to the previous workspace.
+      queryClient.clear();
+      navigate(homeForRole(session.role));
+      notify(`You are now in ${session.tenantName}.`);
+    } catch {
+      notify("Could not open this workspace. Please try again.", "error");
+    }
+  }
 
   function submitSearch(event) {
     event.preventDefault();
@@ -186,13 +205,41 @@ export default function TopBar({ onMenu }) {
           </span>
           <span className="hidden text-left leading-tight sm:block">
             <span className="block text-sm font-medium text-ink">{name}</span>
-            <span className="block text-[11px] text-ink-muted">{user?.role?.replaceAll("_", " ")}</span>
+            <span className="block max-w-40 truncate text-[11px] text-ink-muted">
+              {user?.tenantName && user?.role !== "SUPER_ADMIN"
+                ? `${roleLabel(user?.role)} · ${user.tenantName}`
+                : roleLabel(user?.role)}
+            </span>
           </span>
           <ChevronDown size={14} className="hidden text-ink-subtle sm:block" />
         </button>
         {accountOpen && (
           <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-[var(--radius-card)] border border-accent-soft bg-surface py-1 shadow-lg shadow-slate-300/40">
             <p className="truncate border-b border-slate-100 px-4 py-2.5 text-xs text-ink-muted">{user?.email}</p>
+            {workspaces.length > 1 && (
+              <div className="border-b border-slate-100 py-1">
+                <p className="px-4 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+                  Workspaces
+                </p>
+                {workspaces.map((workspace) => {
+                  const current = workspace.tenantId === user?.tenantId;
+                  return (
+                    <button
+                      key={workspace.tenantId}
+                      type="button"
+                      className={`flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm hover:bg-accent-soft/50 ${
+                        current ? "font-semibold text-accent" : "text-ink"
+                      }`}
+                      aria-current={current ? "true" : undefined}
+                      onClick={() => openWorkspace(workspace)}
+                    >
+                      <span className="truncate">{workspace.name}</span>
+                      {current && <Check size={14} className="shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <button
               type="button"
               className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-ink hover:bg-accent-soft/50"

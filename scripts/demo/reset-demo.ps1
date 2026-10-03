@@ -58,31 +58,37 @@ Psql "notification-db" "notification_user" "notification_db" "wipe.sql" @("db=no
 Write-Host "2/5 Création des espaces clients via l'API..." -ForegroundColor Cyan
 $direction = Api POST "/api/auth/login" @{ email = $DirectionEmail; password = $DirectionPassword }
 
+# admin = chef de projet Adlift (AGENCY_ADMIN) ; CLIENT = contact chez le client, en lecture seule.
+# Un compte n'appartient qu'à un espace : chaque chef de projet a donc une adresse propre.
 $clients = @(
-  @{ key = "atlas";  name = "Atlas Voyages";           email = "contact@atlasvoyages.ma"; admin = "karim@atlasvoyages.ma";
-     members = @(@{ email = "salma@atlasvoyages.ma"; role = "AGENCY_ADMIN" }, @{ email = "direction@atlasvoyages.ma"; role = "CLIENT" }) },
-  @{ key = "zitoun"; name = "Dar Zitoun Cosmétiques";  email = "contact@darzitoun.ma";    admin = "nadia@darzitoun.ma";
-     members = @(@{ email = "client@darzitoun.ma"; role = "CLIENT" }) },
-  @{ key = "casa";   name = "Casa Immo Conseil";       email = "contact@casaimmo.ma";     admin = "youssef@casaimmo.ma";
-     members = @(@{ email = "client@casaimmo.ma"; role = "CLIENT" }) },
-  @{ key = "riad";   name = "Riad Menara Marrakech";   email = "contact@riadmenara.ma";   admin = "hicham@riadmenara.ma";
-     members = @() }
+  @{ key = "atlas";  name = "Atlas Voyages";           email = "contact@atlasvoyages.ma"; admin = "karim@adlift.ma";
+     members = @(@{ email = "salma@adlift.ma"; role = "AGENCY_ADMIN" }, @{ email = "direction@atlasvoyages.ma"; role = "CLIENT" }) },
+  @{ key = "zitoun"; name = "Dar Zitoun Cosmétiques";  email = "contact@darzitoun.ma";    admin = "nadia@adlift.ma";
+     members = @(@{ email = "marketing@darzitoun.ma"; role = "CLIENT" }) },
+  @{ key = "casa";   name = "Casa Immo Conseil";       email = "contact@casaimmo.ma";     admin = "youssef@adlift.ma";
+     members = @(@{ email = "direction@casaimmo.ma"; role = "CLIENT" }); managers = @("karim@adlift.ma") },
+  @{ key = "riad";   name = "Riad Menara Marrakech";   email = "contact@riadmenara.ma";   admin = "hicham@adlift.ma";
+     members = @(@{ email = "gerant@riadmenara.ma"; role = "CLIENT" }) }
 )
 
 $ids = @{}
 foreach ($c in $clients) {
   $tenant = Api POST "/api/tenants" @{ name = $c.name; email = $c.email; adminEmail = $c.admin; adminPassword = $DemoPassword } $direction.accessToken
   $ids[$c.key] = $tenant.id
-  $admin = Api POST "/api/auth/login" @{ email = $c.admin; password = $DemoPassword }
+  $admin = Api POST "/api/auth/login" @{ email = $c.admin; password = $DemoPassword; tenantId = $tenant.id }
   $ids["$($c.key)_admin"] = $admin.user.id
   foreach ($m in $c.members) {
     Api POST "/api/members/invite" @{ email = $m.email; password = $DemoPassword; role = $m.role } $admin.accessToken | Out-Null
+  }
+  # Chefs de projet qui suivent déjà un autre client : la direction leur ouvre cet espace en plus.
+  foreach ($manager in @($c.managers | Where-Object { $_ })) {
+    Api POST "/api/tenants/$($tenant.id)/members" @{ email = $manager; role = "AGENCY_ADMIN" } $direction.accessToken | Out-Null
   }
   Write-Host "   $($c.name) : $($c.admin)"
 }
 
 # Comptes de démo utilisables directement ; le changement forcé se montre en créant un client en direct.
-PsqlQuery "auth-db" "auth_user" "auth_db" "UPDATE users SET must_change_password = false WHERE role <> 'SUPER_ADMIN'" | Out-Null
+PsqlQuery "auth-db" "auth_user" "auth_db" "UPDATE users SET must_change_password = false WHERE id NOT IN (SELECT user_id FROM memberships WHERE role = 'SUPER_ADMIN')" | Out-Null
 Api PATCH "/api/tenants/$($ids.riad)/deactivate" $null $direction.accessToken | Out-Null
 
 Write-Host "3/5 Campagnes et historique de métriques..." -ForegroundColor Cyan
@@ -100,5 +106,8 @@ Write-Host "   Vue direction : $($overview.tenants.Count) espace(s) avec campagn
 Write-Host ""
 Write-Host "Données de démo prêtes. Mot de passe de tous les comptes clients : $DemoPassword" -ForegroundColor Green
 Write-Host "   Direction      : $DirectionEmail / $DirectionPassword"
-foreach ($c in $clients) { Write-Host ("   {0,-24} admin {1}" -f $c.name, $c.admin) }
+foreach ($c in $clients) {
+  $viewers = ($c.members | Where-Object { $_.role -eq "CLIENT" } | ForEach-Object { $_.email }) -join ", "
+  Write-Host ("   {0,-24} chef de projet {1} | client {2}" -f $c.name, $c.admin, $viewers)
+}
 Write-Host "   Email de démo  : destinataire $Recipient (campagne 'Newsletter clients fidèles', à passer en Active puis envoyer)"

@@ -3,9 +3,9 @@ package com.adlift.auth.service;
 import com.adlift.auth.config.RabbitMQConfig;
 import com.adlift.auth.dto.ActivityEvent;
 import com.adlift.auth.dto.ActivityEvent.Recipient;
+import com.adlift.auth.entity.Membership;
 import com.adlift.auth.entity.Role;
-import com.adlift.auth.entity.User;
-import com.adlift.auth.repository.UserRepository;
+import com.adlift.auth.repository.MembershipRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
@@ -25,22 +25,22 @@ public class ActivityPublisher {
 
     private final ApplicationEventPublisher events;
     private final RabbitTemplate rabbitTemplate;
-    private final UserRepository userRepository;
+    private final MembershipRepository membershipRepository;
 
     /** Prévient la direction Adlift (tous les SUPER_ADMIN actifs). */
     public void notifyPlatformAdmins(String type, String message) {
-        publish(type, message, userRepository.findByRoleAndIsActiveTrue(Role.SUPER_ADMIN));
+        publish(type, message, membershipRepository.findByRoleAndIsActiveTrue(Role.SUPER_ADMIN));
     }
 
-    /** Prévient les administrateurs actifs d'un espace client. */
+    /** Prévient les chefs de projet actifs d'un espace client, dans cet espace. */
     public void notifyTenantAdmins(UUID tenantId, String type, String message) {
-        publish(type, message, userRepository.findByTenant_IdAndRoleAndIsActiveTrue(tenantId, Role.AGENCY_ADMIN));
+        publish(type, message, membershipRepository.findByTenant_IdAndRoleAndIsActiveTrue(tenantId, Role.AGENCY_ADMIN));
     }
 
-    private void publish(String type, String message, List<User> users) {
-        if (users.isEmpty()) return;
-        List<Recipient> recipients = users.stream()
-                .map(u -> new Recipient(u.getId(), u.getTenantId()))
+    private void publish(String type, String message, List<Membership> memberships) {
+        if (memberships.isEmpty()) return;
+        List<Recipient> recipients = memberships.stream()
+                .map(m -> new Recipient(m.getUser().getId(), m.getTenant().getId()))
                 .toList();
         events.publishEvent(new ActivityEvent(type, message, recipients));
     }

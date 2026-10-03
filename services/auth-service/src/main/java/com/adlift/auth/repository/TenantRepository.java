@@ -28,7 +28,7 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
     /** Espaces clients uniquement : exclut l'espace plateforme qui héberge la direction. */
     @Query("""
     SELECT t FROM Tenant t
-    WHERE t.id NOT IN (SELECT u.tenant.id FROM User u WHERE u.role = :platformRole)
+    WHERE t.id NOT IN (SELECT m.tenant.id FROM Membership m WHERE m.role = :platformRole)
     """)
     Page<Tenant> findClientTenants(@Param("platformRole") Role platformRole, Pageable pageable);
 }

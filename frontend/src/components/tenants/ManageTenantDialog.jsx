@@ -3,19 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, KeyRound } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { fetchTenantMembers, resetTenantMemberPassword, updateTenant } from "@/api/tenants";
+import { addTenantMember, fetchTenantMembers, resetTenantMemberPassword, updateTenant } from "@/api/tenants";
 import { isMemberActive } from "@/api/members";
+import { refreshNotifications } from "@/api/notifications";
 import { useFeedback } from "@/context/FeedbackContext";
 import { copyText } from "@/lib/clipboard";
+import { ROLE_HINTS, roleLabel } from "@/lib/roles";
 
 const fieldClass =
   "w-full rounded-[var(--radius-control)] border border-slate-200 bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
-
-function roleLabel(role) {
-  if (role === "AGENCY_ADMIN") return "Agency admin";
-  if (role === "CLIENT") return "Client";
-  return role;
-}
 
 export default function ManageTenantDialog({ tenant, onClose, describeError }) {
   const queryClient = useQueryClient();
@@ -50,20 +46,41 @@ export default function ManageTenantDialog({ tenant, onClose, describeError }) {
     onError: (err) => notify(describeError(err), "error"),
   });
 
+  const [access, setAccess] = useState({ email: "", role: "AGENCY_ADMIN" });
+  const [accessError, setAccessError] = useState(null);
+
+  const addMutation = useMutation({
+    mutationFn: (payload) => addTenantMember(tenant.id, payload),
+    onSuccess: (result) => {
+      setAccess({ email: "", role: access.role });
+      queryClient.invalidateQueries({ queryKey: ["tenant-members", tenant.id] });
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      refreshNotifications(queryClient);
+      if (result.newAccount) {
+        setReset({ email: result.email, temporaryPassword: result.temporaryPassword });
+        setCopied(false);
+        notify(`Login created for ${result.email}.`);
+      } else {
+        notify(`${result.email} can now open ${tenant.name} from their workspace menu.`);
+      }
+    },
+    onError: (err) => setAccessError(describeError(err)),
+  });
+
   const unchanged = details.name.trim() === tenant.name && details.email.trim() === tenant.email;
 
   async function confirmReset(member) {
     const ok = await confirm({
       title: `Reset the password of ${member.email}?`,
       message:
-        "Their current password stops working immediately. You will get a temporary password to share with them; they choose a new one at their next sign-in.",
+        "Their current password stops working immediately, in every workspace they can open. You will get a temporary password to share with them; they choose a new one at their next sign-in.",
       confirmLabel: "Reset password",
     });
     if (ok) resetMutation.mutate(member);
   }
 
   async function copyReset() {
-    const ok = await copyText(`Email: ${reset.email}\nTemporary password: ${reset.temporaryPassword}`);
+    const ok = await copyText(reset.temporaryPassword);
     if (ok) setCopied(true);
     else notify("Could not copy automatically. Select the password and copy it manually.", "error");
   }
@@ -170,6 +187,50 @@ export default function ManageTenantDialog({ tenant, onClose, describeError }) {
               );
             })}
           </ul>
+
+          <form
+            className="mt-4 flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setAccessError(null);
+              addMutation.mutate({ email: access.email.trim(), role: access.role });
+            }}
+          >
+            <p className="text-sm font-medium text-ink">Give access to this workspace</p>
+            <p className="text-xs text-ink-muted">
+              An account manager who already follows other clients keeps the same login and password; this
+              workspace is added to their list. A new email gets a login with a temporary password.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                required
+                type="email"
+                aria-label="Email"
+                placeholder="karim@adlift.ma"
+                className={`${fieldClass} min-w-48 flex-1`}
+                value={access.email}
+                onChange={(e) => setAccess({ ...access, email: e.target.value })}
+              />
+              <select
+                aria-label="Role"
+                className={`${fieldClass} w-auto`}
+                value={access.role}
+                onChange={(e) => setAccess({ ...access, role: e.target.value })}
+              >
+                <option value="AGENCY_ADMIN">{roleLabel("AGENCY_ADMIN")}</option>
+                <option value="CLIENT">{roleLabel("CLIENT")}</option>
+              </select>
+              <Button type="submit" variant="accent" disabled={addMutation.isPending}>
+                {addMutation.isPending ? "Adding…" : "Add"}
+              </Button>
+            </div>
+            <span className="text-xs text-ink-muted">{ROLE_HINTS[access.role]}</span>
+            {accessError && (
+              <p className="rounded-[var(--radius-control)] bg-danger-soft px-3 py-2 text-sm text-danger">
+                {accessError}
+              </p>
+            )}
+          </form>
         </div>
       </Card>
     </div>

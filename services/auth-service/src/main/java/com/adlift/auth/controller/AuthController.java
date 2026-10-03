@@ -26,6 +26,14 @@ public class AuthController {
         return ResponseEntity.ok(authService.refresh(currentUser));
     }
 
+    @PostMapping("/switch")
+    public ResponseEntity<AuthResponse> switchWorkspace(
+            @AuthenticationPrincipal User currentUser,
+            @Valid @RequestBody SwitchWorkspaceRequest request
+    ) {
+        return ResponseEntity.ok(authService.switchWorkspace(currentUser, request.getTenantId()));
+    }
+
     @PostMapping("/change-password")
     public ResponseEntity<AuthResponse> changePassword(
             @AuthenticationPrincipal User currentUser,
@@ -45,8 +53,9 @@ public class AuthController {
         return ResponseEntity.ok(UserInfo.builder()
                 .id(user.getId())
                 .tenantId(user.getTenantId())
+                .tenantName(user.getCurrentTenant().getName())
                 .email(user.getEmail())
-                .role(user.getRole())
+                .role(user.getCurrentRole())
                 .mustChangePassword(user.isMustChangePassword())
                 .build());
     }
