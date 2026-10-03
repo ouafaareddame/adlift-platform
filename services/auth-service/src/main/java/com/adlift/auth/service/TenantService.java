@@ -2,10 +2,13 @@ package com.adlift.auth.service;
 
 import com.adlift.auth.dto.MemberDTOs.MemberResponse;
 import com.adlift.auth.dto.TenantDTOs.*;
+import com.adlift.auth.entity.Membership;
 import com.adlift.auth.entity.Role;
 import com.adlift.auth.entity.Tenant;
 import com.adlift.auth.entity.TenantStatus;
 import com.adlift.auth.entity.User;
+import com.adlift.auth.exception.BadRequestException;
+import com.adlift.auth.repository.MembershipRepository;
 import com.adlift.auth.repository.TenantRepository;
 import com.adlift.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,9 +18,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -26,13 +29,15 @@ public class TenantService {
 
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
+    private final MembershipRepository membershipRepository;
     private final PasswordEncoder passwordEncoder;
     private final ActivityPublisher activity;
 
     /**
      * Onboarding d'un client par la direction Adlift : crée l'espace isolé
-     * et son premier AGENCY_ADMIN dans la même transaction, pour qu'aucun
-     * espace ne reste sans personne capable de s'y connecter.
+     * et l'accès de son chef de projet dans la même transaction, pour qu'aucun
+     * espace ne reste sans personne capable de s'y connecter. Un chef de projet
+     * qui a déjà un compte garde son mot de passe et voit simplement un espace de plus.
      */
     @Transactional
     public TenantResponse create(CreateTenantRequest request) {
@@ -42,9 +47,9 @@ public class TenantService {
         if (tenantRepository.existsByName(request.getName())) {
             throw new IllegalArgumentException("Un tenant avec ce nom existe déjà.");
         }
-        if (userRepository.existsByEmail(request.getAdminEmail())) {
-            throw new IllegalArgumentException("Cet email est déjà utilisé.");
-        }
+        String adminEmail = request.getAdminEmail().trim();
+        Optional<User> existing = userRepository.findByEmail(adminEmail);
+        existing.ifPresent(this::assertNotPlatformAccount);
 
         Tenant tenant = tenantRepository.save(Tenant.builder()
                 .name(request.getName())
@@ -52,28 +57,30 @@ public class TenantService {
                 .status(TenantStatus.ACTIVE)
                 .build());
 
-        userRepository.save(User.builder()
-                .tenant(tenant)
-                .email(request.getAdminEmail())
+        User admin = existing.orElseGet(() -> userRepository.save(User.builder()
+                .email(adminEmail)
                 .passwordHash(passwordEncoder.encode(request.getAdminPassword()))
-                .role(Role.AGENCY_ADMIN)
                 .isActive(true)
                 .mustChangePassword(true)
-                .build());
+                .build()));
+        membershipRepository.save(Membership.builder().user(admin).tenant(tenant).role(Role.AGENCY_ADMIN).build());
 
         activity.notifyPlatformAdmins("TENANT_CREATED", String.format(
-                "L'espace client « %s » a été créé (admin : %s).", tenant.getName(), request.getAdminEmail()));
-        return toResponse(tenant, request.getAdminEmail());
+                "L'espace client « %s » a été créé (admin : %s).", tenant.getName(), adminEmail));
+        TenantResponse response = toResponse(tenant, adminEmail);
+        response.setAdminNewAccount(existing.isEmpty());
+        return response;
     }
 
+    @Transactional(readOnly = true)
     public Page<TenantResponse> list(Pageable pageable) {
         return tenantRepository.findClientTenants(Role.SUPER_ADMIN, pageable)
                 .map(tenant -> toResponse(tenant, firstAdminEmail(tenant.getId())));
     }
 
     private String firstAdminEmail(UUID tenantId) {
-        return userRepository.findFirstByTenant_IdAndRoleOrderByCreatedAtAsc(tenantId, Role.AGENCY_ADMIN)
-                .map(User::getEmail)
+        return membershipRepository.findFirstByTenant_IdAndRoleOrderByCreatedAtAsc(tenantId, Role.AGENCY_ADMIN)
+                .map(m -> m.getUser().getEmail())
                 .orElse(null);
     }
 
@@ -93,18 +100,49 @@ public class TenantService {
         return toResponse(tenantRepository.save(tenant), firstAdminEmail(tenantId));
     }
 
+    @Transactional(readOnly = true)
     public List<MemberResponse> members(UUID tenantId) {
         getClientTenantOrThrow(tenantId);
-        return userRepository.findByTenantId(tenantId).stream()
-                .sorted(Comparator.comparing(User::getCreatedAt))
-                .map(u -> MemberResponse.builder()
-                        .id(u.getId())
-                        .email(u.getEmail())
-                        .role(u.getRole())
-                        .isActive(u.isActive())
-                        .createdAt(u.getCreatedAt())
-                        .build())
+        return membershipRepository.findByTenant_IdOrderByCreatedAtAsc(tenantId).stream()
+                .map(MemberService::toResponse)
                 .toList();
+    }
+
+    /**
+     * Affectation par la direction : un chef de projet existant reçoit un espace de plus,
+     * sinon un compte est créé avec un mot de passe temporaire.
+     */
+    @Transactional
+    public MemberAccessResponse addMember(UUID tenantId, AddMemberRequest request) {
+        Tenant tenant = getClientTenantOrThrow(tenantId);
+        if (request.getRole() == Role.SUPER_ADMIN) {
+            throw new BadRequestException("Impossible d'attribuer le rôle SUPER_ADMIN depuis un tenant.");
+        }
+        String email = request.getEmail().trim();
+        Optional<User> existing = userRepository.findByEmail(email);
+        if (existing.isPresent()) {
+            assertNotPlatformAccount(existing.get());
+            if (membershipRepository.findByUser_IdAndTenant_Id(existing.get().getId(), tenantId).isPresent()) {
+                throw new IllegalArgumentException("Ce compte a déjà accès à cet espace.");
+            }
+        }
+
+        String password = existing.isPresent() ? null : TemporaryPasswords.generate();
+        User user = existing.orElseGet(() -> userRepository.save(User.builder()
+                .email(email)
+                .passwordHash(passwordEncoder.encode(password))
+                .isActive(true)
+                .mustChangePassword(true)
+                .build()));
+        membershipRepository.save(Membership.builder().user(user).tenant(tenant).role(request.getRole()).build());
+
+        activity.notifyTenantAdmins(tenantId, "MEMBER_INVITED", String.format(
+                "%s a été ajouté à l'espace avec le rôle %s.", email, request.getRole()));
+        return MemberAccessResponse.builder()
+                .email(email)
+                .newAccount(existing.isEmpty())
+                .temporaryPassword(password)
+                .build();
     }
 
     /**
@@ -114,8 +152,8 @@ public class TenantService {
     @Transactional
     public PasswordResetResponse resetMemberPassword(UUID tenantId, UUID userId) {
         getClientTenantOrThrow(tenantId);
-        User user = userRepository.findById(userId)
-                .filter(u -> tenantId.equals(u.getTenantId()))
+        User user = membershipRepository.findByUser_IdAndTenant_Id(userId, tenantId)
+                .map(Membership::getUser)
                 .orElseThrow(() -> new NoSuchElementException("Membre non trouvé."));
         String password = TemporaryPasswords.generate();
         user.setPasswordHash(passwordEncoder.encode(password));
@@ -142,7 +180,7 @@ public class TenantService {
 
         // Empêche de casser l'intégrité référentielle : un tenant avec des
         // membres actifs ne doit pas pouvoir être supprimé directement.
-        if (userRepository.existsByTenant_Id(tenantId)) {
+        if (membershipRepository.existsByTenant_Id(tenantId)) {
             throw new IllegalStateException(
                     "Impossible de supprimer ce tenant : il possède encore des membres. "
                             + "Désactivez-le plutôt, ou retirez d'abord tous ses membres.");
@@ -154,10 +192,17 @@ public class TenantService {
     private Tenant getClientTenantOrThrow(UUID tenantId) {
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new NoSuchElementException("Tenant introuvable."));
-        if (userRepository.existsByTenant_IdAndRole(tenantId, Role.SUPER_ADMIN)) {
+        if (membershipRepository.existsByTenant_IdAndRole(tenantId, Role.SUPER_ADMIN)) {
             throw new IllegalStateException("L'espace de la plateforme Adlift ne peut pas être modifié.");
         }
         return tenant;
+    }
+
+    /** Les comptes de la direction restent hors des espaces clients. */
+    private void assertNotPlatformAccount(User user) {
+        if (membershipRepository.existsByUser_IdAndRole(user.getId(), Role.SUPER_ADMIN)) {
+            throw new IllegalArgumentException("Cet email est déjà utilisé.");
+        }
     }
 
     private TenantResponse toResponse(Tenant t, String adminEmail) {

@@ -1,6 +1,7 @@
 package com.adlift.auth.entity;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,9 +17,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Utilisateur rattaché à un Tenant. Email unique globalement
- * (simplifie le login : recherche par email seul, sans connaître
- * le tenant à l'avance).
+ * Compte d'une personne. Email unique globalement (le login se fait par email seul) ;
+ * ses espaces et ses rôles sont dans Membership.
  */
 @Entity
 @Table(name = "users")
@@ -33,10 +33,6 @@ public class User implements UserDetails {
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(updatable = false, nullable = false)
     private UUID id;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "tenant_id", nullable = false)
-    private Tenant tenant;
 
     @Column(nullable = false, unique = true, length = 255)
     private String email;
@@ -53,28 +49,37 @@ public class User implements UserDetails {
     @Builder.Default
     private boolean mustChangePassword = false;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private Role role;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    // Espace sélectionné pour la requête en cours (lu dans le JWT), jamais persisté.
+    @Transient
+    @Setter(AccessLevel.NONE)
+    private Tenant currentTenant;
+
+    @Transient
+    @Setter(AccessLevel.NONE)
+    private Role currentRole;
 
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
 
-    @Transient
+    public void useWorkspace(Membership membership) {
+        this.currentTenant = membership.getTenant();
+        this.currentRole = membership.getRole();
+    }
+
     public UUID getTenantId() {
-        return this.tenant != null ? this.tenant.getId() : null;
+        return currentTenant != null ? currentTenant.getId() : null;
     }
 
     // ── Implémentation UserDetails (Spring Security) ──
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        return currentRole == null ? List.of() : List.of(new SimpleGrantedAuthority("ROLE_" + currentRole.name()));
     }
 
     @Override

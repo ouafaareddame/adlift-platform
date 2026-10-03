@@ -23,12 +23,13 @@ Adlift Platform is a multi-tenant SaaS application that lets an agency (Adlift) 
 Main features:
 
 - **Direction overview**: activity, spend and budget alerts across all clients.
-- **Client workspaces** created by the Adlift direction, together with their first admin. There is no public sign-up.
+- **Client workspaces** created by the Adlift direction, together with the Adlift account manager who runs them. There is no public sign-up.
+- **Workspace management**: the direction edits a client's details and resets a forgotten password with a temporary one.
 - **Campaigns** with a lifecycle, budget tracking, a metrics history and alerts at 80 % and 100 % of the budget.
 - **Real email campaigns** sent through [Brevo](https://www.brevo.com). Delivered, open and click figures are synced back automatically.
 - **Ad performance simulator** for Ads and Social campaigns. The Meta and Google Ads APIs require validated business accounts.
 - **Reports** by period, with CSV export and print-to-PDF.
-- **In-app notifications** on every campaign status change, delivered via RabbitMQ.
+- **In-app notifications** on campaign status changes and administration actions (workspaces, logins), delivered via RabbitMQ.
 
 ---
 
@@ -71,8 +72,10 @@ All client traffic goes through the **API Gateway** on port `8080`. The gateway 
 | Role            | Description                                                                 |
 |-----------------|-----------------------------------------------------------------------------|
 | `SUPER_ADMIN`   | Adlift direction: global overview, creates and deactivates client workspaces |
-| `AGENCY_ADMIN`  | Workspace manager: campaigns, metrics, email sending, members                |
-| `CLIENT`        | Read-only access to the workspace's dashboard, campaigns and reports        |
+| `AGENCY_ADMIN`  | Account manager, an Adlift team member assigned to a client: campaigns, metrics, email sending, logins |
+| `CLIENT`        | Contact at the client company: read-only access to its dashboard, campaigns and reports |
+
+Adlift runs the campaigns and the client follows the results. A role is held per workspace: one login can open several workspaces (an account manager who follows several clients), and the account menu switches between them. Each JWT carries only the selected workspace, so the other services keep the same isolation without knowing about multi-workspace accounts. Deactivating a member removes their access to that workspace only.
 
 New accounts receive a temporary password. Until it is changed, the JWT carries a `mustChangePassword` flag, and the gateway only allows the password-change routes. Deactivating an account or a workspace revokes access within 15 minutes at most, because every token renewal checks the account again.
 
@@ -92,7 +95,7 @@ Metrics come from one of three sources:
 |--------------------------|--------------------------------------------------------------|
 | Email, sent              | Brevo statistics, synced every 5 minutes (read-only)         |
 | Ads / Social, active     | Ad simulator (`AD_SIMULATOR_ENABLED`, every 30 s by default) |
-| Any other active campaign | Manual entry by an `AGENCY_ADMIN`                           |
+| Any other active campaign | Manual entry by the account manager (`AGENCY_ADMIN`)        |
 
 ---
 

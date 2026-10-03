@@ -32,7 +32,7 @@ public class JwtService {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId().toString());
         claims.put("tenantId", user.getTenantId().toString());
-        claims.put("role", user.getRole().name());
+        claims.put("role", user.getCurrentRole().name());
         if (user.isMustChangePassword()) {
             // Lu par l'API Gateway : tant qu'il est présent, seul le changement de mot de passe est autorisé.
             claims.put("mustChangePassword", true);

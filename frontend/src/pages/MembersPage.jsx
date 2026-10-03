@@ -16,6 +16,8 @@ import {
 } from "@/api/members";
 import { refreshNotifications } from "@/api/notifications";
 import { useFeedback } from "@/context/FeedbackContext";
+import { copyText } from "@/lib/clipboard";
+import { ROLE_HINTS, roleLabel } from "@/lib/roles";
 
 const ASSIGNABLE_ROLES = ["AGENCY_ADMIN", "CLIENT"];
 
@@ -26,9 +28,13 @@ function apiError(err) {
   const raw = err.response?.data?.message;
   const map = {
     "Cet email est déjà utilisé.": "This email is already in use.",
+    "Cet email a déjà un compte : demandez à la direction Adlift de lui ouvrir cet espace.":
+      "This email already has a login. Ask the Adlift direction to give it access to this workspace.",
+    "Ce compte a accès à d'autres espaces : seule la direction Adlift peut réinitialiser son mot de passe.":
+      "This login also opens other workspaces, so only the Adlift direction can reset its password.",
     "Membre non trouvé.": "Member not found.",
     "Impossible : c'est le dernier administrateur actif de cet espace.":
-      "This is the last active admin of the workspace. Promote another member first.",
+      "This is the last active account manager of the workspace. Promote another member first.",
     "Tenant non trouvé.": "Workspace not found.",
     "Impossible d'attribuer le rôle SUPER_ADMIN depuis un tenant.":
       "SUPER_ADMIN cannot be assigned from a workspace.",
@@ -38,12 +44,6 @@ function apiError(err) {
   };
   if (raw && map[raw]) return map[raw];
   return raw || "Something went wrong. Please try again.";
-}
-
-function roleLabel(role) {
-  if (role === "AGENCY_ADMIN") return "Agency admin";
-  if (role === "CLIENT") return "Client";
-  return role;
 }
 
 export default function MembersPage() {
@@ -134,7 +134,8 @@ export default function MembersPage() {
   async function confirmDeactivate(member) {
     const ok = await confirm({
       title: `Deactivate ${member.email}?`,
-      message: "They will no longer be able to sign in. You can reactivate this login at any time.",
+      message:
+        "They lose access to this workspace (their other workspaces, if any, are not affected). You can reactivate this access at any time.",
       confirmLabel: "Deactivate",
     });
     if (ok) deactivateMutation.mutate(member);
@@ -181,7 +182,11 @@ export default function MembersPage() {
             type="button"
             variant="ghost"
             className="py-1.5 text-xs text-accent"
-            onClick={() => navigator.clipboard.writeText(notice.password)}
+            onClick={async () =>
+              (await copyText(notice.password))
+                ? notify("Password copied.")
+                : notify("Could not copy automatically. Select the password and copy it manually.", "error")
+            }
           >
             Copy password
           </Button>
@@ -360,6 +365,7 @@ export default function MembersPage() {
                   </option>
                 ))}
               </select>
+              <span className="text-xs font-normal text-ink-muted">{ROLE_HINTS[form.role]}</span>
             </label>
             <p className="text-xs text-ink-subtle">
               No email is sent. Share the email and temporary password with this person — they will choose

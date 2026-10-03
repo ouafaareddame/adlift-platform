@@ -7,17 +7,22 @@ Fil rouge : *une agence (Adlift) pilote les campagnes de plusieurs clients depui
 
 ## 1. Comptes de démo
 
-Créés par `scripts/demo/reset-demo.ps1`. Mot de passe des comptes clients : **`Demo@2026`**.
+Créés par `scripts/demo/reset-demo.ps1`. Mot de passe des comptes des espaces clients : **`Demo@2026`**.
+
+Les chefs de projet (AGENCY_ADMIN) sont des employés d'Adlift qui pilotent les campagnes d'un client. Les comptes CLIENT appartiennent à l'entreprise cliente, qui suit ses résultats en lecture seule.
 
 | Rôle | Compte | Mot de passe | Ce qu'on montre |
 |---|---|---|---|
 | Direction Adlift (SUPER_ADMIN) | `direction@adlift.ma` | `Adlift@2026` | Vue d'ensemble, espaces clients, rapports |
-| Admin agence — Atlas Voyages | `karim@atlasvoyages.ma` | `Demo@2026` | Dashboard, campagnes, email réel, membres |
-| Admin agence — Atlas Voyages | `salma@atlasvoyages.ma` | `Demo@2026` | (second admin, garde-fou « dernier admin ») |
+| Chef de projet Adlift — Atlas Voyages | `karim@adlift.ma` | `Demo@2026` | Dashboard, campagnes, email réel, membres |
+| Chef de projet Adlift — Atlas Voyages | `salma@adlift.ma` | `Demo@2026` | (second chef de projet, garde-fou « dernier admin ») |
 | Client — Atlas Voyages | `direction@atlasvoyages.ma` | `Demo@2026` | Accès en lecture, rapports |
-| Admin — Dar Zitoun Cosmétiques | `nadia@darzitoun.ma` | `Demo@2026` | Campagne en dépassement de budget |
-| Admin — Casa Immo Conseil | `youssef@casaimmo.ma` | `Demo@2026` | Leads immobiliers |
-| Admin — Riad Menara (désactivé) | `hicham@riadmenara.ma` | `Demo@2026` | Connexion refusée : espace désactivé |
+| Chef de projet Adlift — Dar Zitoun Cosmétiques | `nadia@adlift.ma` | `Demo@2026` | Campagne en dépassement de budget |
+| Client — Dar Zitoun Cosmétiques | `marketing@darzitoun.ma` | `Demo@2026` | Lecture seule |
+| Chef de projet Adlift — Casa Immo Conseil | `youssef@adlift.ma` | `Demo@2026` | Leads immobiliers (Karim y a aussi accès) |
+| Client — Casa Immo Conseil | `direction@casaimmo.ma` | `Demo@2026` | Lecture seule |
+| Chef de projet Adlift — Riad Menara (désactivé) | `hicham@adlift.ma` | `Demo@2026` | Connexion refusée : espace désactivé |
+| Client — Riad Menara (désactivé) | `gerant@riadmenara.ma` | `Demo@2026` | Connexion refusée : espace désactivé |
 
 **Ce que contient le jeu de données** (dates relatives au jour du reset) :
 
@@ -74,40 +79,42 @@ Fenêtre normale → `direction@adlift.ma`.
 1. **Overview** : « La direction voit d'un coup d'œil l'activité de tous les clients : 3 clients actifs, 5 campagnes en cours, 111 000 MAD dépensés sur 200 000 planifiés. »
 2. Montrer la colonne **Alerts** : Dar Zitoun a dépassé un budget, Atlas et Casa Immo ont une campagne au-dessus de 80 %. « Seules les campagnes actives déclenchent une alerte à 80 % : une campagne terminée à 97 % est une campagne bien gérée. »
 3. Riad Menara est **Inactive** : contrat terminé, l'espace est conservé mais plus personne ne peut s'y connecter.
-4. **Clients → New client** : créer « Maison Kenza Déco », `contact@kenzadeco.ma`, admin `amine@kenzadeco.ma`. Le mot de passe temporaire est généré ; cliquer sur **Copy credentials**.
+4. **Clients → New client** : créer « Maison Kenza Déco », `contact@kenzadeco.ma`, chef de projet `amine@adlift.ma`. Le mot de passe temporaire est généré ; cliquer sur **Copy credentials**.
    > « Il n'y a pas d'inscription publique : seule la direction ouvre un espace client. »
 5. **Report** sur Atlas Voyages : choisir « This month », montrer les totaux, puis **Export CSV** et **Print / PDF**.
 
 ### Acte 2 — Première connexion sécurisée (1 min)
 
-Fenêtre privée → `amine@kenzadeco.ma` + mot de passe copié.
+Fenêtre privée → `amine@adlift.ma` + mot de passe copié.
 
 6. L'application impose **« Choose your own password »**. Essayer d'aller sur `/dashboard` dans la barre d'adresse : redirection vers le changement de mot de passe.
 7. Saisir un nouveau mot de passe → arrivée sur un dashboard vide (« No campaigns yet »). Fermer la fenêtre privée.
 
 ### Acte 3 — Le quotidien de l'agence (4 min)
 
-Fenêtre normale → Log out → `karim@atlasvoyages.ma`.
+Fenêtre normale → Log out → `karim@adlift.ma` (chef de projet d'Atlas Voyages).
 
 8. **Dashboard** : impressions, dépense, CTR, entonnoir (2,26 % des impressions deviennent des clics, 4,3 % des clics des conversions), répartition des campagnes, alerte « Escapades d'automne — 82 % ».
 9. **Campaigns** : barres de budget par campagne, statuts. Ouvrir **« Escapades d'automne — Meta »** : KPIs et historique des métriques.
    > « Sans accès aux API Meta et Google Ads, un simulateur alimente les campagnes actives toutes les 30 secondes, avec des ratios réalistes par canal et un plafond strict au budget. »
    Fermer et rouvrir le détail : les chiffres ont augmenté.
-10. **Members** : Salma (admin) et le compte client `direction@atlasvoyages.ma`. L'admin invite, change les rôles et désactive les comptes de son espace uniquement ; l'application empêche de désactiver le dernier admin actif.
-11. **Cloche** : notifications de changement de statut, envoyées par RabbitMQ depuis campaign-service vers notification-service. Le passage en Active de l'acte 4 en crée une nouvelle en direct.
+10. **Members** : Salma (autre chef de projet) et le compte client `direction@atlasvoyages.ma`. Le chef de projet invite, change les rôles et désactive les comptes de cet espace uniquement ; l'application empêche de retirer le dernier chef de projet actif.
+11. **Menu du compte → Workspaces** : Karim suit aussi Casa Immo Conseil. Un clic change d'espace sans se reconnecter ; le dashboard, les campagnes et la cloche ne montrent que ce client. Revenir sur Atlas Voyages.
+    > « Un compte, plusieurs clients : le rôle est porté par l'accès à chaque espace, et le jeton ne contient que l'espace ouvert. »
+12. **Cloche** : notifications de changement de statut, envoyées par RabbitMQ depuis campaign-service vers notification-service. Le passage en Active de l'acte 4 en crée une nouvelle en direct.
 
 ### Acte 4 — Un vrai email envoyé depuis l'application (3 min)
 
-12. Campagne **« Newsletter clients fidèles »** (Scheduled) → **Move to active**.
-13. Ouvrir son détail → section **Email delivery** : objet, message et destinataires sont déjà prêts. (Ajouter l'adresse d'un membre du jury s'il le souhaite, puis **Save changes**.)
-14. **Send now** → confirmer. Montrer l'email reçu sur le téléphone. L'ouvrir et cliquer sur le lien.
-15. Attendre environ 1 minute (enchaîner sur l'acte 5), puis **Refresh stats** : délivrés, ouvertures et clics réels remontent dans la campagne, le dashboard et les rapports.
+13. Campagne **« Newsletter clients fidèles »** (Scheduled) → **Move to active**.
+14. Ouvrir son détail → section **Email delivery** : objet, message et destinataires sont déjà prêts. (Ajouter l'adresse d'un membre du jury s'il le souhaite, puis **Save changes**.)
+15. **Send now** → confirmer. Montrer l'email reçu sur le téléphone. L'ouvrir et cliquer sur le lien.
+16. Attendre environ 1 minute (enchaîner sur l'acte 5), puis **Refresh stats** : délivrés, ouvertures et clics réels remontent dans la campagne, le dashboard et les rapports.
     > « Les chiffres viennent de Brevo, pas du simulateur : une campagne réellement envoyée n'est plus simulée et n'accepte plus de saisie manuelle. »
 
 ### Acte 5 — Le client et l'isolation (1 min)
 
-16. Log out → `direction@atlasvoyages.ma` (rôle CLIENT) : il consulte le dashboard, les campagnes et les rapports, mais n'a ni création, ni saisie de métriques, ni membres, ni envoi d'email.
-17. Log out → `hicham@riadmenara.ma` : connexion refusée avec « This workspace has been deactivated. Contact Adlift. »
+17. Log out → `direction@atlasvoyages.ma` (rôle CLIENT) : il consulte le dashboard, les campagnes et les rapports, mais n'a ni création, ni saisie de métriques, ni membres, ni envoi d'email.
+18. Log out → `gerant@riadmenara.ma` : connexion refusée avec « This workspace has been deactivated. Contact Adlift. »
 
 Conclusion : « Une plateforme, trois rôles, des espaces clients isolés, des budgets suivis en temps réel et un vrai canal email. »
 
@@ -117,6 +124,9 @@ Conclusion : « Une plateforme, trois rôles, des espaces clients isolés, des b
 
 **Comment l'isolation multi-tenant est-elle garantie ?**
 Le `tenantId` est porté par le JWT signé. Chaque service le relit et filtre toutes ses requêtes avec. Une campagne d'un autre tenant renvoie 403, même si l'on connaît son identifiant.
+
+**Et avec des milliers de clients ?**
+Un compte n'est pas lié à un espace : une table d'accès (compte, espace, rôle) permet à un chef de projet de suivre autant de clients que nécessaire avec un seul mot de passe. La direction affecte ou retire un chef de projet depuis **Manage**. Le JWT ne porte que l'espace ouvert : changer d'espace délivre un nouveau jeton, après vérification de l'accès. Les services de campagnes et de notifications n'ont donc pas changé.
 
 **Pourquoi des microservices ?**
 Auth, campagnes et notifications évoluent et se chargent différemment. Chacun a sa propre base PostgreSQL. RabbitMQ découple les notifications : si notification-service tombe, les campagnes continuent de fonctionner.

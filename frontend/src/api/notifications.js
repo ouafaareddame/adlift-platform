@@ -1,4 +1,5 @@
 import apiClient from "@/api/client";
+import { roleLabel } from "@/lib/roles";
 
 export function fetchNotifications({ page = 0, size = 20 } = {}) {
   return apiClient
@@ -44,11 +45,8 @@ export function translateNotification(message) {
   return message || "";
 }
 
-const ROLE_LABELS = { AGENCY_ADMIN: "Agency admin", CLIENT: "Client" };
-const roleLabel = (role) => ROLE_LABELS[role] || role;
-
 const ACTIVITY_TRANSLATIONS = [
-  [/^L'espace client « (.+) » a été créé \(admin : (.+)\)\.$/, (name, admin) => `Client workspace “${name}” was created (admin: ${admin}).`],
+  [/^L'espace client « (.+) » a été créé \(admin : (.+)\)\.$/, (name, admin) => `Client workspace “${name}” was created (account manager: ${admin}).`],
   [/^L'espace client « (.+) » a été désactivé\.$/, (name) => `Client workspace “${name}” was deactivated.`],
   [/^L'espace client « (.+) » a été réactivé\.$/, (name) => `Client workspace “${name}” was reactivated.`],
   [/^(.+) a été ajouté à l'espace avec le rôle (\w+)\.$/, (email, role) => `${email} joined the workspace as ${roleLabel(role)}.`],

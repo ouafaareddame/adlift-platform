@@ -1,7 +1,8 @@
 package com.adlift.auth.security;
 
-import com.adlift.auth.entity.TenantStatus;
+import com.adlift.auth.entity.Membership;
 import com.adlift.auth.entity.User;
+import com.adlift.auth.repository.MembershipRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,12 +11,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Optional;
+import java.util.UUID;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -23,6 +25,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final MembershipRepository membershipRepository;
 
     @Override
     protected void doFilterInternal(
@@ -46,24 +49,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.debug("[JWT Filter] Email extrait du token : {}", email);
 
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
-                log.debug("[JWT Filter] UserDetails chargé : {}", userDetails.getUsername());
+                User user = (User) userDetailsService.loadUserByUsername(email);
 
-                User user = (User) userDetails;
-                boolean tenantActive = user.getTenant() != null
-                        && user.getTenant().getStatus() == TenantStatus.ACTIVE;
+                // Le rôle et l'espace viennent de l'accès en base, pas du token :
+                // un accès retiré ou un espace désactivé coupe la session immédiatement.
+                Optional<Membership> membership = Optional.ofNullable(jwtService.extractTenantId(token))
+                        .flatMap(tenantId -> membershipRepository.findByUser_IdAndTenant_Id(
+                                user.getId(), UUID.fromString(tenantId)));
 
-                if (!user.isEnabled() || !tenantActive) {
-                    log.warn("[JWT Filter] Compte ou tenant inactif : {}", email);
+                if (!user.isEnabled() || membership.isEmpty() || !membership.get().isUsable()) {
+                    log.warn("[JWT Filter] Compte, accès ou espace inactif : {}", email);
                     SecurityContextHolder.clearContext();
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     return;
                 }
 
                 if (jwtService.isTokenValid(token, user)) {
+                    user.useWorkspace(membership.get());
                     UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails, null, userDetails.getAuthorities());
+                            new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                     log.debug("[JWT Filter] Authentification réussie pour : {}", email);
