@@ -1,0 +1,60 @@
+# Surcouche de production (serveur AWS), appliquée par-dessus docker-compose.yml.
+# Sur le serveur, le .env contient COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml,
+# donc un simple `docker compose up -d --build` utilise les deux fichiers.
+#
+# Seul le port 80 (frontend + /api via Nginx) est exposé ; bases, RabbitMQ et services
+# restent joignables uniquement sur le réseau Docker interne.
+
+x-java-limits: &java-limits
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+
+services:
+  auth-db:
+    restart: unless-stopped
+    ports: !reset []
+
+  campaign-db:
+    restart: unless-stopped
+    ports: !reset []
+
+  notification-db:
+    restart: unless-stopped
+    ports: !reset []
+
+  rabbitmq:
+    restart: unless-stopped
+    ports: !reset []
+
+  auth-service:
+    restart: unless-stopped
+    ports: !reset []
+    mem_limit: 640m
+    environment: *java-limits
+
+  campaign-service:
+    restart: unless-stopped
+    ports: !reset []
+    mem_limit: 768m
+    environment: *java-limits
+
+  notification-service:
+    restart: unless-stopped
+    ports: !reset []
+    mem_limit: 512m
+    environment: *java-limits
+
+  api-gateway:
+    restart: unless-stopped
+    ports: !reset []
+    mem_limit: 512m
+    environment: *java-limits
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api-gateway

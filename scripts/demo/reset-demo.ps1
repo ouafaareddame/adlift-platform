@@ -36,7 +36,7 @@ function Api($method, $path, $body = $null, $token = $null) {
 }
 
 function Psql($container, $user, $db, $file, [string[]]$vars = @()) {
-  docker cp "$here\$file" "${container}:/tmp/$file" | Out-Null
+  docker cp (Join-Path $here $file) "${container}:/tmp/$file" | Out-Null
   $cmd = @("exec", $container, "psql", "-q", "-U", $user, "-d", $db, "-v", "ON_ERROR_STOP=1")
   foreach ($v in $vars) { $cmd += @("-v", $v) }
   $cmd += @("-f", "/tmp/$file")

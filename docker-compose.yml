@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: auth_db
       POSTGRES_USER: auth_user
-      POSTGRES_PASSWORD: auth_pass
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-auth_pass}
     ports:
       - "5433:5432"
     volumes:
@@ -17,7 +17,7 @@ services:
     environment:
       POSTGRES_DB: campaign_db
       POSTGRES_USER: campaign_user
-      POSTGRES_PASSWORD: campaign_pass
+      POSTGRES_PASSWORD: ${CAMPAIGN_DB_PASSWORD:-campaign_pass}
     ports:
       - "5434:5432"
     volumes:
@@ -29,7 +29,7 @@ services:
     environment:
       POSTGRES_DB: notification_db
       POSTGRES_USER: notification_user
-      POSTGRES_PASSWORD: notification_pass
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-notification_pass}
     ports:
       - "5435:5432"
     volumes:
@@ -42,8 +42,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
 
   # ───────── Les 4 services Spring Boot ─────────
 
@@ -54,7 +54,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/auth_db
       SPRING_DATASOURCE_USERNAME: auth_user
-      SPRING_DATASOURCE_PASSWORD: auth_pass
+      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASSWORD:-auth_pass}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: "900000"
       ADLIFT_ADMIN_EMAIL: ${ADLIFT_ADMIN_EMAIL:-direction@adlift.ma}
@@ -71,12 +71,12 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://campaign-db:5432/campaign_db
       SPRING_DATASOURCE_USERNAME: campaign_user
-      SPRING_DATASOURCE_PASSWORD: campaign_pass
+      SPRING_DATASOURCE_PASSWORD: ${CAMPAIGN_DB_PASSWORD:-campaign_pass}
       JWT_SECRET: ${JWT_SECRET}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_USERNAME: guest
-      SPRING_RABBITMQ_PASSWORD: guest
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-guest}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
       AD_SIMULATOR_ENABLED: ${AD_SIMULATOR_ENABLED:-true}
       AD_SIMULATOR_INTERVAL_MS: ${AD_SIMULATOR_INTERVAL_MS:-30000}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
@@ -96,12 +96,12 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://notification-db:5432/notification_db
       SPRING_DATASOURCE_USERNAME: notification_user
-      SPRING_DATASOURCE_PASSWORD: notification_pass
+      SPRING_DATASOURCE_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-notification_pass}
       JWT_SECRET: ${JWT_SECRET}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_USERNAME: guest
-      SPRING_RABBITMQ_PASSWORD: guest
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-guest}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
     ports:
       - "8083:8083"
     depends_on:
