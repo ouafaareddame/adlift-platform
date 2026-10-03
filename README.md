@@ -139,6 +139,21 @@ Optional settings (in `.env`): `AD_SIMULATOR_ENABLED`, `AD_SIMULATOR_INTERVAL_MS
 
 ---
 
+## Deployment
+
+`docker-compose.prod.yml` adds the production setup on top of the base file:
+- Nginx serves the built frontend and proxies `/api` to the gateway;
+- only port 80 is published;
+- each service gets a memory limit and restarts automatically.
+
+The whole platform runs on a single VM with about 1.2 GB of RAM in use.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+---
+
 ## Demo Dataset
 
 `scripts/demo/reset-demo.ps1` (PowerShell) erases all data except the direction account. It then recreates 4 client workspaces with their admins and client accounts, 13 campaigns with a realistic metrics history, notifications, and a ready-to-send email draft.
