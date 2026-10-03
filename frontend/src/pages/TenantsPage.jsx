@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Copy, FileText, Plus, RefreshCw } from "lucide-react";
+import { Copy, FileText, Plus, RefreshCw, Settings } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import ManageTenantDialog from "@/components/tenants/ManageTenantDialog";
 import { activateTenant, createTenant, deactivateTenant, fetchTenants } from "@/api/tenants";
+import { refreshNotifications } from "@/api/notifications";
+import { useFeedback } from "@/context/FeedbackContext";
 
 const fieldClass =
   "w-full rounded-[var(--radius-control)] border border-slate-200 bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
@@ -19,6 +22,7 @@ function apiError(err) {
     "Cet email est déjà utilisé.": "This admin email is already used by another login.",
     "Tenant introuvable.": "Client workspace not found.",
     "L'espace de la plateforme Adlift ne peut pas être modifié.": "The Adlift platform workspace cannot be changed.",
+    "Membre non trouvé.": "This login no longer belongs to the workspace.",
   };
   if (raw && map[raw]) return map[raw];
   return raw || "Something went wrong. Please try again.";
@@ -32,14 +36,15 @@ function generatePassword() {
 
 export default function TenantsPage() {
   const queryClient = useQueryClient();
+  const { confirm, notify } = useFeedback();
   const [searchParams] = useSearchParams();
   const query = (searchParams.get("q") || "").toLowerCase();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [error, setError] = useState(null);
   const [formError, setFormError] = useState(null);
   const [created, setCreated] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [managedId, setManagedId] = useState(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["tenants"],
@@ -53,6 +58,7 @@ export default function TenantsPage() {
       tenant.email?.toLowerCase().includes(query) ||
       tenant.adminEmail?.toLowerCase().includes(query)
   );
+  const managed = data?.content?.find((tenant) => tenant.id === managedId);
 
   const createMutation = useMutation({
     mutationFn: createTenant,
@@ -63,15 +69,34 @@ export default function TenantsPage() {
       setForm(emptyForm);
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
       queryClient.invalidateQueries({ queryKey: ["overview"] });
+      refreshNotifications(queryClient);
     },
     onError: (err) => setFormError(apiError(err)),
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, active }) => (active ? activateTenant(id) : deactivateTenant(id)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tenants"] }),
-    onError: (err) => setError(apiError(err)),
+    mutationFn: ({ tenant, active }) => (active ? activateTenant(tenant.id) : deactivateTenant(tenant.id)),
+    onSuccess: (_, { tenant, active }) => {
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      queryClient.invalidateQueries({ queryKey: ["overview"] });
+      refreshNotifications(queryClient);
+      notify(active ? `${tenant.name} is active again.` : `${tenant.name} has been deactivated.`);
+    },
+    onError: (err) => notify(apiError(err), "error"),
   });
+
+  async function toggleStatus(tenant) {
+    const active = tenant.status !== "ACTIVE";
+    if (!active) {
+      const ok = await confirm({
+        title: `Deactivate ${tenant.name}?`,
+        message: "Its users will no longer be able to sign in. You can reactivate the workspace at any time.",
+        confirmLabel: "Deactivate",
+      });
+      if (!ok) return;
+    }
+    statusMutation.mutate({ tenant, active });
+  }
 
   function openForm() {
     setForm({ ...emptyForm, adminPassword: generatePassword() });
@@ -125,10 +150,6 @@ export default function TenantsPage() {
         </Card>
       )}
 
-      {error && (
-        <p className="rounded-[var(--radius-control)] bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>
-      )}
-
       <Card className="overflow-hidden border border-accent-soft/80 p-0">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
@@ -179,6 +200,14 @@ export default function TenantsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        variant="ghost"
+                        className="px-2 py-1.5 text-xs"
+                        onClick={() => setManagedId(tenant.id)}
+                      >
+                        <Settings size={14} />
+                        Manage
+                      </Button>
                       <Link to={`/reports?tenant=${tenant.id}`}>
                         <Button variant="ghost" className="px-2 py-1.5 text-xs">
                           <FileText size={14} />
@@ -188,15 +217,8 @@ export default function TenantsPage() {
                       <Button
                         variant={tenant.status === "ACTIVE" ? "danger" : "ghost"}
                         className="px-2 py-1.5 text-xs"
-                        onClick={() => {
-                          const active = tenant.status !== "ACTIVE";
-                          if (
-                            active ||
-                            window.confirm(`Deactivate ${tenant.name}? Its users will no longer be able to sign in.`)
-                          ) {
-                            statusMutation.mutate({ id: tenant.id, active });
-                          }
-                        }}
+                        disabled={statusMutation.isPending}
+                        onClick={() => toggleStatus(tenant)}
                       >
                         {tenant.status === "ACTIVE" ? "Deactivate" : "Activate"}
                       </Button>
@@ -208,6 +230,15 @@ export default function TenantsPage() {
           </table>
         </div>
       </Card>
+
+      {managed && (
+        <ManageTenantDialog
+          key={managed.id}
+          tenant={managed}
+          describeError={apiError}
+          onClose={() => setManagedId(null)}
+        />
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4">

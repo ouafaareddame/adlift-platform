@@ -1,5 +1,6 @@
 package com.adlift.auth.controller;
 
+import com.adlift.auth.dto.MemberDTOs.MemberResponse;
 import com.adlift.auth.dto.TenantDTOs.*;
 import com.adlift.auth.entity.TenantStatus;
 import com.adlift.auth.service.TenantService;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -30,6 +32,21 @@ public class TenantController {
     @GetMapping
     public ResponseEntity<Page<TenantResponse>> list(Pageable pageable) {
         return ResponseEntity.ok(tenantService.list(pageable));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<TenantResponse> update(@PathVariable UUID id, @Valid @RequestBody UpdateTenantRequest request) {
+        return ResponseEntity.ok(tenantService.update(id, request));
+    }
+
+    @GetMapping("/{id}/members")
+    public ResponseEntity<List<MemberResponse>> members(@PathVariable UUID id) {
+        return ResponseEntity.ok(tenantService.members(id));
+    }
+
+    @PostMapping("/{id}/members/{userId}/reset-password")
+    public ResponseEntity<PasswordResetResponse> resetPassword(@PathVariable UUID id, @PathVariable UUID userId) {
+        return ResponseEntity.ok(tenantService.resetMemberPassword(id, userId));
     }
 
     @PatchMapping("/{id}/activate")

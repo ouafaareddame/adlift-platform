@@ -1,6 +1,7 @@
 package com.adlift.auth.controller;
 
 import com.adlift.auth.dto.MemberDTOs.*;
+import com.adlift.auth.dto.TenantDTOs.PasswordResetResponse;
 import com.adlift.auth.entity.User;
 import com.adlift.auth.service.MemberService;
 import jakarta.validation.Valid;
@@ -57,6 +58,15 @@ public class UserController {
     ) {
         memberService.activate(id, currentUser.getTenantId());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasRole('AGENCY_ADMIN')")
+    public ResponseEntity<PasswordResetResponse> resetPassword(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User currentUser
+    ) {
+        return ResponseEntity.ok(memberService.resetPassword(id, currentUser.getTenantId()));
     }
 
     @GetMapping

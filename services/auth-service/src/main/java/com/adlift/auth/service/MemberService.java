@@ -1,6 +1,7 @@
 package com.adlift.auth.service;
 
 import com.adlift.auth.dto.MemberDTOs.*;
+import com.adlift.auth.dto.TenantDTOs.PasswordResetResponse;
 import com.adlift.auth.entity.Role;
 import com.adlift.auth.entity.Tenant;
 import com.adlift.auth.entity.User;
@@ -24,6 +25,7 @@ public class MemberService {
     private final UserRepository userRepository;
     private final TenantRepository tenantRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ActivityPublisher activity;
 
     @Transactional
     public MemberResponse invite(InviteMemberRequest request, UUID tenantId) {
@@ -45,6 +47,8 @@ public class MemberService {
                 .mustChangePassword(true)
                 .build());
 
+        activity.notifyTenantAdmins(tenantId, "MEMBER_INVITED", String.format(
+                "%s a été ajouté à l'espace avec le rôle %s.", user.getEmail(), user.getRole()));
         return toResponse(user);
     }
 
@@ -55,6 +59,10 @@ public class MemberService {
         if (request.getRole() != Role.AGENCY_ADMIN) {
             assertNotLastActiveAdmin(member, tenantId);
         }
+        if (member.getRole() != request.getRole()) {
+            activity.notifyTenantAdmins(tenantId, "MEMBER_ROLE_CHANGED", String.format(
+                    "Le rôle de %s est passé à %s.", member.getEmail(), request.getRole()));
+        }
         member.setRole(request.getRole());
         return toResponse(userRepository.save(member));
     }
@@ -63,6 +71,10 @@ public class MemberService {
     public void deactivate(UUID memberId, UUID tenantId) {
         User member = getOwnedMember(memberId, tenantId);
         assertNotLastActiveAdmin(member, tenantId);
+        if (member.isActive()) {
+            activity.notifyTenantAdmins(tenantId, "MEMBER_DEACTIVATED", String.format(
+                    "Le compte %s a été désactivé.", member.getEmail()));
+        }
         member.setActive(false);
         userRepository.save(member);
     }
@@ -70,8 +82,22 @@ public class MemberService {
     @Transactional
     public void activate(UUID memberId, UUID tenantId) {
         User member = getOwnedMember(memberId, tenantId);
+        if (!member.isActive()) {
+            activity.notifyTenantAdmins(tenantId, "MEMBER_ACTIVATED", String.format(
+                    "Le compte %s a été réactivé.", member.getEmail()));
+        }
         member.setActive(true);
         userRepository.save(member);
+    }
+
+    @Transactional
+    public PasswordResetResponse resetPassword(UUID memberId, UUID tenantId) {
+        User member = getOwnedMember(memberId, tenantId);
+        String password = TemporaryPasswords.generate();
+        member.setPasswordHash(passwordEncoder.encode(password));
+        member.setMustChangePassword(true);
+        userRepository.save(member);
+        return PasswordResetResponse.builder().email(member.getEmail()).temporaryPassword(password).build();
     }
 
     public List<MemberResponse> list(UUID tenantId) {

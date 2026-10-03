@@ -10,6 +10,11 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
 
 jwt:
   secret: unSecretTresLongEtAleatoirePourSignerLesTokensJWT1234567890

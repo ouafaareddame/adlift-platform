@@ -20,6 +20,10 @@ export function activateMember(id) {
   return apiClient.patch(`/api/members/${id}/activate`);
 }
 
+export function resetMemberPassword(id) {
+  return apiClient.post(`/api/members/${id}/reset-password`).then((res) => res.data);
+}
+
 export function isMemberActive(member) {
   if (typeof member?.isActive === "boolean") return member.isActive;
   if (typeof member?.active === "boolean") return member.active;
