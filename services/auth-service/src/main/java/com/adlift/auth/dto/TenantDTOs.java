@@ -28,6 +28,22 @@ public class TenantDTOs {
         private String adminPassword;
     }
 
+    @Data
+    public static class UpdateTenantRequest {
+        @NotBlank
+        private String name;
+
+        @Email @NotBlank
+        private String email;
+    }
+
+    /** Renvoyé une seule fois : le mot de passe n'est stocké que sous forme de hash. */
+    @Data @Builder
+    public static class PasswordResetResponse {
+        private String email;
+        private String temporaryPassword;
+    }
+
     @Data @Builder
     public static class TenantResponse {
         private UUID id;

@@ -5,6 +5,8 @@ import { Plus, Pencil, Trash2, ArrowRight, Activity } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
+import { useFeedback } from "@/context/FeedbackContext";
+import { refreshNotifications } from "@/api/notifications";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { BudgetBar } from "@/components/ui/BudgetBar";
 import { EmailPanel } from "@/components/campaigns/EmailPanel";
@@ -129,6 +131,7 @@ export default function CampaignsPage() {
   const { hasRole } = useAuth();
   const isAdmin = hasRole("AGENCY_ADMIN");
   const queryClient = useQueryClient();
+  const { confirm, notify } = useFeedback();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const keyword = searchParams.get("keyword") || "";
@@ -213,7 +216,8 @@ export default function CampaignsPage() {
 
   const saveMutation = useMutation({
     mutationFn: (payload) => (editing ? updateCampaign(editing.id, payload) : createCampaign(payload)),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      notify(editing ? `“${saved.name}” has been updated.` : `“${saved.name}” has been created as a draft.`);
       setFormOpen(false);
       setEditing(null);
       setForm(emptyForm());
@@ -223,25 +227,52 @@ export default function CampaignsPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, next }) => changeCampaignStatus(id, next),
-    onSuccess: refresh,
-    onError: (err) => setError(apiError(err)),
+    mutationFn: ({ campaign, next }) => changeCampaignStatus(campaign.id, next),
+    onSuccess: (_, { campaign, next }) => {
+      refresh();
+      refreshNotifications(queryClient);
+      notify(`“${campaign.name}” is now ${STATUS_LABEL[next]}.`);
+    },
+    onError: (err) => notify(apiError(err), "error"),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteCampaign,
-    onSuccess: refresh,
-    onError: (err) => setError(apiError(err)),
+    mutationFn: (campaign) => deleteCampaign(campaign.id),
+    onSuccess: (_, campaign) => {
+      refresh();
+      notify(`“${campaign.name}” has been deleted.`);
+    },
+    onError: (err) => notify(apiError(err), "error"),
   });
 
   const metricsMutation = useMutation({
     mutationFn: ({ id, payload }) => recordCampaignMetrics(id, payload),
     onSuccess: () => {
+      notify(`Metrics recorded for “${metricsFor?.name}”.`);
       setMetricsFor(null);
       refresh();
     },
     onError: (err) => setError(apiError(err)),
   });
+
+  async function advanceStatus(campaign, next) {
+    const ok = await confirm({
+      title: `${NEXT_ACTION[campaign.status]}?`,
+      message: `“${campaign.name}” will move to ${STATUS_LABEL[next]}. A campaign cannot go back to a previous step.`,
+      confirmLabel: NEXT_ACTION[campaign.status],
+      tone: next === "ACTIVE" || next === "SCHEDULED" ? "default" : "danger",
+    });
+    if (ok) statusMutation.mutate({ campaign, next });
+  }
+
+  async function confirmDelete(campaign) {
+    const ok = await confirm({
+      title: `Delete “${campaign.name}”?`,
+      message: "The campaign and its metrics history will be permanently removed.",
+      confirmLabel: "Delete",
+    });
+    if (ok) deleteMutation.mutate(campaign);
+  }
 
   function openCreate() {
     setEditing(null);
@@ -427,16 +458,8 @@ export default function CampaignsPage() {
                           <Button
                             variant="ghost"
                             className="px-2 py-1.5 text-xs text-accent"
-                            onClick={() => {
-                              const action = NEXT_ACTION[campaign.status];
-                              if (
-                                window.confirm(
-                                  `${action} for “${campaign.name}”? This cannot be undone from a previous step.`
-                                )
-                              ) {
-                                statusMutation.mutate({ id: campaign.id, next });
-                              }
-                            }}
+                            disabled={statusMutation.isPending}
+                            onClick={() => advanceStatus(campaign, next)}
                           >
                             <ArrowRight size={14} />
                             {NEXT_ACTION[campaign.status]}
@@ -460,11 +483,8 @@ export default function CampaignsPage() {
                           <Button
                             variant="danger"
                             className="px-2 py-1.5 text-xs"
-                            onClick={() => {
-                              if (window.confirm(`Delete “${campaign.name}”?`)) {
-                                deleteMutation.mutate(campaign.id);
-                              }
-                            }}
+                            disabled={deleteMutation.isPending}
+                            onClick={() => confirmDelete(campaign)}
                           >
                             <Trash2 size={14} />
                             Delete

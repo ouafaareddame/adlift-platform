@@ -23,6 +23,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     long countByTenant_IdAndRoleAndIsActiveTrue(UUID tenantId, Role role);
 
+    List<User> findByRoleAndIsActiveTrue(Role role);
+
+    List<User> findByTenant_IdAndRoleAndIsActiveTrue(UUID tenantId, Role role);
+
     Optional<User> findFirstByTenant_IdAndRoleOrderByCreatedAtAsc(UUID tenantId, Role role);
 
     @Query("SELECT u FROM User u WHERE u.tenant.id = :tenantId")

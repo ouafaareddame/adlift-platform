@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Mail, RefreshCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useFeedback } from "@/context/FeedbackContext";
 import { formatCount } from "@/lib/format";
 import {
   fetchCampaignEmail,
@@ -48,6 +49,7 @@ function EmailForm({ campaign, email, onSaved }) {
   const [content, setContent] = useState(email.content || "");
   const [recipientsText, setRecipientsText] = useState((email.recipients || []).join("\n"));
   const [error, setError] = useState(null);
+  const { confirm, notify } = useFeedback();
 
   const recipients = parseRecipients(recipientsText);
   const invalid = recipients.filter((r) => !EMAIL_PATTERN.test(r));
@@ -63,6 +65,7 @@ function EmailForm({ campaign, email, onSaved }) {
       setError(null);
       setRecipientsText(data.recipients.join("\n"));
       onSaved(data);
+      notify("Email saved.");
     },
     onError: (err) => setError(apiError(err)),
   });
@@ -72,6 +75,8 @@ function EmailForm({ campaign, email, onSaved }) {
     onSuccess: (data) => {
       setError(null);
       onSaved(data, true);
+      const failed = data.failedCount > 0 ? ` (${data.failedCount} failed)` : "";
+      notify(`Email sent to ${data.sentCount} recipient${data.sentCount > 1 ? "s" : ""}${failed}.`);
     },
     onError: (err) => setError(apiError(err)),
   });
@@ -93,14 +98,15 @@ function EmailForm({ campaign, email, onSaved }) {
     saveMutation.mutate();
   }
 
-  function send() {
-    if (
-      window.confirm(
-        `Send “${email.subject}” to ${email.recipients.length} recipient(s) now? This cannot be undone.`
-      )
-    ) {
-      sendMutation.mutate();
-    }
+  async function send() {
+    const count = email.recipients.length;
+    const ok = await confirm({
+      title: `Send “${email.subject}”?`,
+      message: `The email goes out now to ${count} recipient${count > 1 ? "s" : ""}. It cannot be edited or sent again afterwards.`,
+      confirmLabel: "Send now",
+      tone: "default",
+    });
+    if (ok) sendMutation.mutate();
   }
 
   const canSend = saved && !dirty && campaign.status === "ACTIVE" && email.providerReady;

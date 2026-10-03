@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { UserPlus, UserMinus } from "lucide-react";
+import { KeyRound, UserPlus, UserMinus } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
@@ -11,8 +11,11 @@ import {
   fetchMembers,
   inviteMember,
   isMemberActive,
+  resetMemberPassword,
   updateMemberRole,
 } from "@/api/members";
+import { refreshNotifications } from "@/api/notifications";
+import { useFeedback } from "@/context/FeedbackContext";
 
 const ASSIGNABLE_ROLES = ["AGENCY_ADMIN", "CLIENT"];
 
@@ -46,10 +49,11 @@ function roleLabel(role) {
 export default function MembersPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, notify } = useFeedback();
   const [searchParams] = useSearchParams();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", role: "CLIENT" });
-  const [error, setError] = useState(null);
+  const [inviteError, setInviteError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [query, setQuery] = useState(searchParams.get("q") || "");
 
@@ -73,33 +77,68 @@ export default function MembersPage() {
     onSuccess: (created, variables) => {
       setInviteOpen(false);
       setNotice({
-        email: created.email,
-        role: roleLabel(created.role),
+        text: `Login created for ${created.email} (${roleLabel(created.role)}).`,
         password: variables.password,
       });
       setForm({ email: "", password: "", role: "CLIENT" });
       queryClient.invalidateQueries({ queryKey: ["members"] });
+      refreshNotifications(queryClient);
+      notify(`Login created for ${created.email}.`);
     },
-    onError: (err) => setError(apiError(err)),
+    onError: (err) => setInviteError(apiError(err)),
   });
 
+  function onMemberChanged(message) {
+    queryClient.invalidateQueries({ queryKey: ["members"] });
+    refreshNotifications(queryClient);
+    notify(message);
+  }
+
   const roleMutation = useMutation({
-    mutationFn: ({ id, role }) => updateMemberRole(id, role),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["members"] }),
-    onError: (err) => setError(apiError(err)),
+    mutationFn: ({ member, role }) => updateMemberRole(member.id, role),
+    onSuccess: (_, { member, role }) => onMemberChanged(`${member.email} is now ${roleLabel(role)}.`),
+    onError: (err) => notify(apiError(err), "error"),
   });
 
   const deactivateMutation = useMutation({
-    mutationFn: deactivateMember,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["members"] }),
-    onError: (err) => setError(apiError(err)),
+    mutationFn: (member) => deactivateMember(member.id),
+    onSuccess: (_, member) => onMemberChanged(`${member.email} has been deactivated.`),
+    onError: (err) => notify(apiError(err), "error"),
   });
 
   const activateMutation = useMutation({
-    mutationFn: activateMember,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["members"] }),
-    onError: (err) => setError(apiError(err)),
+    mutationFn: (member) => activateMember(member.id),
+    onSuccess: (_, member) => onMemberChanged(`${member.email} is active again.`),
+    onError: (err) => notify(apiError(err), "error"),
   });
+
+  const resetMutation = useMutation({
+    mutationFn: (member) => resetMemberPassword(member.id),
+    onSuccess: (result) => {
+      setNotice({ text: `Password reset for ${result.email}.`, password: result.temporaryPassword });
+      notify(`New temporary password created for ${result.email}.`);
+    },
+    onError: (err) => notify(apiError(err), "error"),
+  });
+
+  async function confirmReset(member) {
+    const ok = await confirm({
+      title: `Reset the password of ${member.email}?`,
+      message:
+        "Their current password stops working immediately. You will get a temporary password to share with them; they choose a new one at their next sign-in.",
+      confirmLabel: "Reset password",
+    });
+    if (ok) resetMutation.mutate(member);
+  }
+
+  async function confirmDeactivate(member) {
+    const ok = await confirm({
+      title: `Deactivate ${member.email}?`,
+      message: "They will no longer be able to sign in. You can reactivate this login at any time.",
+      confirmLabel: "Deactivate",
+    });
+    if (ok) deactivateMutation.mutate(member);
+  }
 
   return (
     <div className="space-y-5">
@@ -113,7 +152,7 @@ export default function MembersPage() {
         <Button
           variant="accent"
           onClick={() => {
-            setError(null);
+            setInviteError(null);
             setInviteOpen(true);
           }}
         >
@@ -132,13 +171,10 @@ export default function MembersPage() {
         />
       </Card>
 
-      {error && (
-        <p className="rounded-[var(--radius-control)] bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>
-      )}
       {notice && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] bg-success-soft px-3 py-2 text-sm text-success">
           <p>
-            Login created for {notice.email} ({notice.role}). Share this temporary password:{" "}
+            {notice.text} Share this temporary password:{" "}
             <span className="font-semibold text-ink">{notice.password}</span>
           </p>
           <Button
@@ -200,10 +236,7 @@ export default function MembersPage() {
                         className={`${fieldClass} max-w-[180px] py-1.5`}
                         value={member.role}
                         disabled={isSelf || roleMutation.isPending}
-                        onChange={(e) => {
-                          setError(null);
-                          roleMutation.mutate({ id: member.id, role: e.target.value });
-                        }}
+                        onChange={(e) => roleMutation.mutate({ member, role: e.target.value })}
                       >
                         {ASSIGNABLE_ROLES.map((role) => (
                           <option key={role} value={role}>
@@ -227,31 +260,38 @@ export default function MembersPage() {
                     <td className="px-4 py-3">
                       {isSelf ? (
                         <span className="text-xs text-ink-subtle">Your account</span>
-                      ) : active ? (
-                        <Button
-                          variant="danger"
-                          className="px-2 py-1.5 text-xs"
-                          onClick={() => {
-                            if (window.confirm(`Deactivate ${member.email}? They will no longer be able to sign in.`)) {
-                              setError(null);
-                              deactivateMutation.mutate(member.id);
-                            }
-                          }}
-                        >
-                          <UserMinus size={14} />
-                          Deactivate
-                        </Button>
                       ) : (
-                        <Button
-                          variant="ghost"
-                          className="px-2 py-1.5 text-xs text-accent"
-                          onClick={() => {
-                            setError(null);
-                            activateMutation.mutate(member.id);
-                          }}
-                        >
-                          Reactivate
-                        </Button>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Button
+                            variant="ghost"
+                            className="px-2 py-1.5 text-xs"
+                            disabled={resetMutation.isPending}
+                            onClick={() => confirmReset(member)}
+                          >
+                            <KeyRound size={14} />
+                            Reset password
+                          </Button>
+                          {active ? (
+                            <Button
+                              variant="danger"
+                              className="px-2 py-1.5 text-xs"
+                              disabled={deactivateMutation.isPending}
+                              onClick={() => confirmDeactivate(member)}
+                            >
+                              <UserMinus size={14} />
+                              Deactivate
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              className="px-2 py-1.5 text-xs text-accent"
+                              disabled={activateMutation.isPending}
+                              onClick={() => activateMutation.mutate(member)}
+                            >
+                              Reactivate
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -275,7 +315,7 @@ export default function MembersPage() {
               className="flex flex-col gap-3"
               onSubmit={(e) => {
                 e.preventDefault();
-                setError(null);
+                setInviteError(null);
                 setNotice(null);
                 inviteMutation.mutate({
                   email: form.email.trim(),
@@ -325,6 +365,11 @@ export default function MembersPage() {
               No email is sent. Share the email and temporary password with this person — they will choose
               their own password at first sign-in.
             </p>
+            {inviteError && (
+              <p className="rounded-[var(--radius-control)] bg-danger-soft px-3 py-2 text-sm text-danger">
+                {inviteError}
+              </p>
+            )}
             <Button type="submit" variant="accent" disabled={inviteMutation.isPending}>
               {inviteMutation.isPending ? "Creating login…" : "Create login"}
             </Button>

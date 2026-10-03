@@ -10,6 +10,8 @@ public class RabbitMQConfig {
     public static final String EXCHANGE = "adlift.exchange";
     public static final String QUEUE = "adlift.notifications.queue";
     public static final String ROUTING_KEY = "campaign.status.changed";
+    public static final String ACTIVITY_QUEUE = "adlift.activity.queue";
+    public static final String ACTIVITY_ROUTING_KEY = "activity.#";
 
     @Bean
     public TopicExchange exchange() {
@@ -27,6 +29,19 @@ public class RabbitMQConfig {
                 .bind(notificationQueue())
                 .to(exchange())
                 .with(ROUTING_KEY);
+    }
+
+    @Bean
+    public Queue activityQueue() {
+        return new Queue(ACTIVITY_QUEUE, true);
+    }
+
+    @Bean
+    public Binding activityBinding() {
+        return BindingBuilder
+                .bind(activityQueue())
+                .to(exchange())
+                .with(ACTIVITY_ROUTING_KEY);
     }
 
     // Convertit automatiquement les messages Java <-> JSON

@@ -3,5 +3,11 @@ package com.adlift.notification.entity;
 public enum NotificationType {
     CAMPAIGN_STATUS_CHANGED,
     METRIC_ALERT,
-    MEMBER_INVITED
+    TENANT_CREATED,
+    TENANT_ACTIVATED,
+    TENANT_DEACTIVATED,
+    MEMBER_INVITED,
+    MEMBER_ROLE_CHANGED,
+    MEMBER_ACTIVATED,
+    MEMBER_DEACTIVATED
 }

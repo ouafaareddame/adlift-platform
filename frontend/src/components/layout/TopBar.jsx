@@ -8,6 +8,7 @@ import {
   fetchUnreadCount,
   isNotificationRead,
   markNotificationRead,
+  notificationTarget,
   translateNotification,
 } from "@/api/notifications";
 
@@ -142,7 +143,9 @@ export default function TopBar({ onMenu }) {
               {isLoading && <p className="px-4 py-6 text-sm text-ink-muted">Loading…</p>}
               {!isLoading && notifications.length === 0 && (
                 <p className="px-4 py-6 text-sm text-ink-muted">
-                  No notifications yet. Status changes on campaigns will appear here.
+                  {isSuperAdmin
+                    ? "No notifications yet. Changes to client workspaces will appear here."
+                    : "No notifications yet. Campaign and team changes will appear here."}
                 </p>
               )}
               {notifications.map((item) => {
@@ -156,7 +159,8 @@ export default function TopBar({ onMenu }) {
                     }`}
                     onClick={() => {
                       if (!read) readMutation.mutate(item.id);
-                      if (user?.role !== "SUPER_ADMIN") navigate("/campaigns");
+                      const target = notificationTarget(item, user?.role);
+                      if (target) navigate(target);
                       setOpen(false);
                     }}
                   >

@@ -3,6 +3,7 @@ const variants = {
   accent: "bg-accent text-white hover:bg-accent-hover",
   ghost: "bg-transparent text-ink-muted hover:bg-surface-muted",
   danger: "bg-danger-soft text-danger hover:bg-danger/10",
+  destructive: "bg-danger text-white hover:bg-danger/90",
 };
 
 export function Button({ children, variant = "primary", className = "", ...props }) {

@@ -59,10 +59,15 @@ services:
       JWT_EXPIRATION: "900000"
       ADLIFT_ADMIN_EMAIL: ${ADLIFT_ADMIN_EMAIL:-direction@adlift.ma}
       ADLIFT_ADMIN_PASSWORD: ${ADLIFT_ADMIN_PASSWORD:-Adlift@2026}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-guest}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
     ports:
       - "8081:8081"
     depends_on:
       - auth-db
+      - rabbitmq
 
   campaign-service:
     build:

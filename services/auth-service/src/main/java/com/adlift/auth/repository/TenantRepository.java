@@ -21,6 +21,10 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
 
     boolean existsByName(String name);
 
+    boolean existsByEmailAndIdNot(String email, UUID id);
+
+    boolean existsByNameAndIdNot(String name, UUID id);
+
     /** Espaces clients uniquement : exclut l'espace plateforme qui héberge la direction. */
     @Query("""
     SELECT t FROM Tenant t

@@ -1,5 +1,6 @@
 package com.adlift.auth.service;
 
+import com.adlift.auth.dto.MemberDTOs.MemberResponse;
 import com.adlift.auth.dto.TenantDTOs.*;
 import com.adlift.auth.entity.Role;
 import com.adlift.auth.entity.Tenant;
@@ -14,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -24,6 +27,7 @@ public class TenantService {
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ActivityPublisher activity;
 
     /**
      * Onboarding d'un client par la direction Adlift : crée l'espace isolé
@@ -57,20 +61,77 @@ public class TenantService {
                 .mustChangePassword(true)
                 .build());
 
+        activity.notifyPlatformAdmins("TENANT_CREATED", String.format(
+                "L'espace client « %s » a été créé (admin : %s).", tenant.getName(), request.getAdminEmail()));
         return toResponse(tenant, request.getAdminEmail());
     }
 
     public Page<TenantResponse> list(Pageable pageable) {
         return tenantRepository.findClientTenants(Role.SUPER_ADMIN, pageable)
-                .map(tenant -> toResponse(tenant, userRepository
-                        .findFirstByTenant_IdAndRoleOrderByCreatedAtAsc(tenant.getId(), Role.AGENCY_ADMIN)
-                        .map(User::getEmail)
-                        .orElse(null)));
+                .map(tenant -> toResponse(tenant, firstAdminEmail(tenant.getId())));
+    }
+
+    private String firstAdminEmail(UUID tenantId) {
+        return userRepository.findFirstByTenant_IdAndRoleOrderByCreatedAtAsc(tenantId, Role.AGENCY_ADMIN)
+                .map(User::getEmail)
+                .orElse(null);
+    }
+
+    @Transactional
+    public TenantResponse update(UUID tenantId, UpdateTenantRequest request) {
+        Tenant tenant = getClientTenantOrThrow(tenantId);
+        String name = request.getName().trim();
+        String email = request.getEmail().trim();
+        if (tenantRepository.existsByNameAndIdNot(name, tenantId)) {
+            throw new IllegalArgumentException("Un tenant avec ce nom existe déjà.");
+        }
+        if (tenantRepository.existsByEmailAndIdNot(email, tenantId)) {
+            throw new IllegalArgumentException("Un tenant avec cet email existe déjà.");
+        }
+        tenant.setName(name);
+        tenant.setEmail(email);
+        return toResponse(tenantRepository.save(tenant), firstAdminEmail(tenantId));
+    }
+
+    public List<MemberResponse> members(UUID tenantId) {
+        getClientTenantOrThrow(tenantId);
+        return userRepository.findByTenantId(tenantId).stream()
+                .sorted(Comparator.comparing(User::getCreatedAt))
+                .map(u -> MemberResponse.builder()
+                        .id(u.getId())
+                        .email(u.getEmail())
+                        .role(u.getRole())
+                        .isActive(u.isActive())
+                        .createdAt(u.getCreatedAt())
+                        .build())
+                .toList();
+    }
+
+    /**
+     * Mot de passe oublié côté client : la direction génère un mot de passe
+     * temporaire, que la personne devra remplacer à sa prochaine connexion.
+     */
+    @Transactional
+    public PasswordResetResponse resetMemberPassword(UUID tenantId, UUID userId) {
+        getClientTenantOrThrow(tenantId);
+        User user = userRepository.findById(userId)
+                .filter(u -> tenantId.equals(u.getTenantId()))
+                .orElseThrow(() -> new NoSuchElementException("Membre non trouvé."));
+        String password = TemporaryPasswords.generate();
+        user.setPasswordHash(passwordEncoder.encode(password));
+        user.setMustChangePassword(true);
+        userRepository.save(user);
+        return PasswordResetResponse.builder().email(user.getEmail()).temporaryPassword(password).build();
     }
 
     @Transactional
     public TenantResponse setStatus(UUID tenantId, TenantStatus newStatus) {
         Tenant tenant = getClientTenantOrThrow(tenantId);
+        if (tenant.getStatus() != newStatus) {
+            boolean active = newStatus == TenantStatus.ACTIVE;
+            activity.notifyPlatformAdmins(active ? "TENANT_ACTIVATED" : "TENANT_DEACTIVATED", String.format(
+                    "L'espace client « %s » a été %s.", tenant.getName(), active ? "réactivé" : "désactivé"));
+        }
         tenant.setStatus(newStatus);
         return toResponse(tenantRepository.save(tenant), null);
     }
