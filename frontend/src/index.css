@@ -30,10 +30,13 @@
 
   --radius-card: 1.25rem;
   --radius-control: 0.75rem;
+
+  --font-sans: "Satoshi", ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
   background-color: var(--color-background);
   color: var(--color-ink);
+  font-family: var(--font-sans);
   font-feature-settings: "cv11", "ss01";
 }

@@ -28,9 +28,15 @@ function Api($method, $path, $body = $null, $token = $null) {
   try {
     return Invoke-RestMethod @params
   } catch {
-    $detail = ""
-    $resp = $_.Exception.Response
-    if ($resp) { $detail = (New-Object System.IO.StreamReader($resp.GetResponseStream())).ReadToEnd() }
+    $detail = $_.ErrorDetails.Message
+    if (-not $detail) {
+      $resp = $_.Exception.Response
+      if ($resp -is [System.Net.Http.HttpResponseMessage]) {
+        $detail = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+      } elseif ($resp -and $resp.GetType().GetMethod("GetResponseStream")) {
+        $detail = (New-Object System.IO.StreamReader($resp.GetResponseStream())).ReadToEnd()
+      }
+    }
     throw "$method $path a échoué : $($_.Exception.Message) $detail"
   }
 }
@@ -75,6 +81,8 @@ $ids = @{}
 foreach ($c in $clients) {
   $tenant = Api POST "/api/tenants" @{ name = $c.name; email = $c.email; adminEmail = $c.admin; adminPassword = $DemoPassword } $direction.accessToken
   $ids[$c.key] = $tenant.id
+  # Sinon la gateway bloque /api/members/invite (mustChangePassword).
+  PsqlQuery "auth-db" "auth_user" "auth_db" "UPDATE users SET must_change_password = false WHERE email = '$($c.admin)'" | Out-Null
   $admin = Api POST "/api/auth/login" @{ email = $c.admin; password = $DemoPassword; tenantId = $tenant.id }
   $ids["$($c.key)_admin"] = $admin.user.id
   foreach ($m in $c.members) {
