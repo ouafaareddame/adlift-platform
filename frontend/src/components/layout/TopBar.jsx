@@ -13,7 +13,7 @@ import {
 } from "@/api/notifications";
 import { roleLabel } from "@/lib/roles";
 import { useFeedback } from "@/context/FeedbackContext";
-import { homeForRole } from "@/routes/ProtectedRoute";
+import { applyWorkspaceSwitch } from "@/lib/workspace";
 
 function formatWhen(value) {
   if (!value) return "";
@@ -89,9 +89,7 @@ export default function TopBar({ onMenu }) {
     if (workspace.tenantId === user?.tenantId) return;
     try {
       const session = await switchWorkspace(workspace.tenantId);
-      // Cached pages belong to the previous workspace.
-      queryClient.clear();
-      navigate(homeForRole(session.role));
+      applyWorkspaceSwitch(queryClient, session, navigate);
       notify(`You are now in ${session.tenantName}.`);
     } catch {
       notify("Could not open this workspace. Please try again.", "error");

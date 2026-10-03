@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Eye,
@@ -8,13 +8,6 @@ import {
   Filter,
   Download,
 } from "lucide-react";
-import {
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
@@ -22,6 +15,8 @@ import apiClient from "@/api/client";
 import { fetchCampaigns } from "@/api/campaigns";
 import { BudgetBar, budgetTone } from "@/components/ui/BudgetBar";
 import { formatCount, formatMoney, formatPct } from "@/lib/format";
+
+const CampaignMixChart = lazy(() => import("@/components/dashboard/CampaignMixChart"));
 
 const ACCENT = "#155686";
 const ACCENT_SOFT = "#e4eef5";
@@ -308,30 +303,9 @@ export default function DashboardPage() {
                   : "No campaigns match"}
               </p>
               <div className="mx-auto h-40 w-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={mixData}
-                      dataKey="value"
-                      nameKey="label"
-                      innerRadius={48}
-                      outerRadius={70}
-                      paddingAngle={mix.length > 1 ? 3 : 0}
-                      stroke="none"
-                    >
-                      {mixData.map((entry) => (
-                        <Cell key={entry.key || entry.label} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value, name) => {
-                        const pct = displayTotal > 0 ? Math.round((Number(value) * 100) / displayTotal) : 0;
-                        return [`${value} (${pct}%)`, name];
-                      }}
-                      contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 8px 24px rgb(15 23 42 / 0.08)" }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                <Suspense fallback={<div className="h-full w-full rounded-full bg-surface-muted" />}>
+                  <CampaignMixChart mixData={mixData} segmented={mix.length > 1} displayTotal={displayTotal} />
+                </Suspense>
               </div>
               <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 text-xs text-ink-muted">
                 {MIX_PALETTE.map((item) => {
