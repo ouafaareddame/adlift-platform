@@ -16,6 +16,7 @@ import {
 } from "@/api/members";
 import { refreshNotifications } from "@/api/notifications";
 import { useFeedback } from "@/context/FeedbackContext";
+import { copyText } from "@/lib/clipboard";
 
 const ASSIGNABLE_ROLES = ["AGENCY_ADMIN", "CLIENT"];
 
@@ -181,7 +182,11 @@ export default function MembersPage() {
             type="button"
             variant="ghost"
             className="py-1.5 text-xs text-accent"
-            onClick={() => navigator.clipboard.writeText(notice.password)}
+            onClick={async () =>
+              (await copyText(notice.password))
+                ? notify("Password copied.")
+                : notify("Could not copy automatically. Select the password and copy it manually.", "error")
+            }
           >
             Copy password
           </Button>

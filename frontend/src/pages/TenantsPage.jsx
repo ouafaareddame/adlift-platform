@@ -8,6 +8,7 @@ import ManageTenantDialog from "@/components/tenants/ManageTenantDialog";
 import { activateTenant, createTenant, deactivateTenant, fetchTenants } from "@/api/tenants";
 import { refreshNotifications } from "@/api/notifications";
 import { useFeedback } from "@/context/FeedbackContext";
+import { copyText } from "@/lib/clipboard";
 
 const fieldClass =
   "w-full rounded-[var(--radius-control)] border border-slate-200 bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
@@ -105,8 +106,9 @@ export default function TenantsPage() {
   }
 
   async function copyCredentials() {
-    await navigator.clipboard.writeText(`Email: ${created.email}\nTemporary password: ${created.password}`);
-    setCopied(true);
+    const ok = await copyText(`Email: ${created.email}\nTemporary password: ${created.password}`);
+    if (ok) setCopied(true);
+    else notify("Could not copy automatically. Select the credentials and copy them manually.", "error");
   }
 
   return (

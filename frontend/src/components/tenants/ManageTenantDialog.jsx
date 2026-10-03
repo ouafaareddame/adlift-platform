@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { fetchTenantMembers, resetTenantMemberPassword, updateTenant } from "@/api/tenants";
 import { isMemberActive } from "@/api/members";
 import { useFeedback } from "@/context/FeedbackContext";
+import { copyText } from "@/lib/clipboard";
 
 const fieldClass =
   "w-full rounded-[var(--radius-control)] border border-slate-200 bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
@@ -62,8 +63,9 @@ export default function ManageTenantDialog({ tenant, onClose, describeError }) {
   }
 
   async function copyReset() {
-    await navigator.clipboard.writeText(`Email: ${reset.email}\nTemporary password: ${reset.temporaryPassword}`);
-    setCopied(true);
+    const ok = await copyText(`Email: ${reset.email}\nTemporary password: ${reset.temporaryPassword}`);
+    if (ok) setCopied(true);
+    else notify("Could not copy automatically. Select the password and copy it manually.", "error");
   }
 
   return (
